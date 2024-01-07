@@ -9,7 +9,7 @@ from EmbeddingModel import EmbeddingModel
 class EmbeddingModelOpenAI(EmbeddingModel):
 
     """
-    Embedding model for OpenAI's API.
+    Embedding model following the OpenAI API.
     """
     
     def __init__(self,
