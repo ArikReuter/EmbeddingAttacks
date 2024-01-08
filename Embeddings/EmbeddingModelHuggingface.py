@@ -1,15 +1,15 @@
 from langchain.embeddings import HuggingFaceEmbeddings
-from EmbeddingModel import EmbeddingModel
+from Embeddings.EmbeddingModel import EmbeddingModel
+
 
 class EmbeddingModelHuggingface(EmbeddingModel):
-
     """
     Embedding model following the OpenAI API.
     """
-    
+
     def __init__(self,
-                 model_name:str = 'sentence-transformers/all-MiniLM-L6-v2',
-                 device = "cpu"):
+                 model_name: str = 'sentence-transformers/all-MiniLM-L6-v2',
+                 device="cpu"):
         """
         Args:
             model_name (str): name of the model to use
@@ -18,13 +18,12 @@ class EmbeddingModelHuggingface(EmbeddingModel):
 
         self.model_id = model_name
         self.device = device
-    
+
         model_kwargs = {'device': device}
         self.embeddings_mod = HuggingFaceEmbeddings(
-            model_name = model_name,
+            model_name=model_name,
             model_kwargs=model_kwargs
         )
-
 
     def embed_document(self, document: str) -> list[float]:
         """
@@ -34,7 +33,6 @@ class EmbeddingModelHuggingface(EmbeddingModel):
 
         """
         return self.embeddings_mod.embed_query(document)
-        
 
     def embed_document_list(self, documents: list[str]) -> list[list[float]]:
         """

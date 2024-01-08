@@ -1,23 +1,23 @@
 from langchain_openai import OpenAIEmbeddings
 from tqdm import tqdm
 import numpy as np
-import os 
+import os
 import tiktoken
 
-from EmbeddingModel import EmbeddingModel
+from Embeddings.EmbeddingModel import EmbeddingModel
+
 
 class EmbeddingModelOpenAI(EmbeddingModel):
-
     """
     Embedding model following the OpenAI API.
     """
-    
+
     def __init__(self,
-                 deployment_name:str = "text-embedding-ada-002",
-                 model_name:str = "text-embedding-ada-002",
+                 deployment_name: str = "text-embedding-ada-002",
+                 model_name: str = "text-embedding-ada-002",
                  context_len: int = 8191,
-                 openai_api_key:str = os.environ['OpenAI_Key_DataSecurity'],
-                 max_retries:int = 10):
+                 openai_api_key: str = os.environ['OpenAI_Key_DataSecurity'],
+                 max_retries: int = 10):
 
         """
 
@@ -35,13 +35,10 @@ class EmbeddingModelOpenAI(EmbeddingModel):
         self.max_retries = max_retries
         self.context_len = context_len
 
- 
-
         self.embeddings_mod = OpenAIEmbeddings(
-            openai_api_key = openai_api_key,
+            openai_api_key=openai_api_key,
             max_retries=max_retries
         )
- 
 
     def embed_document(self, document: str) -> list[float]:
         """
@@ -52,7 +49,6 @@ class EmbeddingModelOpenAI(EmbeddingModel):
         """
         return self.embeddings_mod.embed_query(document)
 
-   
     def embed_document_list(self, documents: list[str]) -> list[list[float]]:
         """
         Embeds a list of documents
@@ -91,19 +87,18 @@ class EmbeddingModelOpenAI(EmbeddingModel):
             int: Total number of tokens needed to embed the corpus.
         """
 
-
         if self.tokenizer_str is None:
-             tokenizer = tiktoken.encoding_for_model(self.embedding_model)
+            tokenizer = tiktoken.encoding_for_model(self.embedding_model)
 
-        else: 
-             tokenizer = tiktoken.get_encoding(self.tokenizer_str)
+        else:
+            tokenizer = tiktoken.get_encoding(self.tokenizer_str)
 
         num_tokens = 0
         for document in tqdm(corpus):
             num_tokens += self.num_tokens_from_string(document, tokenizer)
-        
+
         return num_tokens
-   
+
     def split_doc(self, text):
 
         """
@@ -128,7 +123,6 @@ class EmbeddingModelOpenAI(EmbeddingModel):
 
         return split_text
 
-
     def split_long_docs(self, text: list[str]) -> list[list[str]]:
 
         """
@@ -144,11 +138,10 @@ class EmbeddingModelOpenAI(EmbeddingModel):
         
         """
 
- 
         split_text = []
 
         for document in tqdm(text):
-            
+
             encoding = tiktoken.encoding_for_model(self.model_name)
             if self.num_tokens_from_string(document, encoding=encoding) > self.context_len:
                 split_text.append(self.split_doc(document))
@@ -156,9 +149,8 @@ class EmbeddingModelOpenAI(EmbeddingModel):
             else:
                 split_text.append([document])
 
-        return split_text  
+        return split_text
 
-   
     def get_embeddings_doc_split(self, corpus: list[list[str]], n_tries=3) -> list[np.array]:
 
         """
@@ -183,17 +175,17 @@ class EmbeddingModelOpenAI(EmbeddingModel):
                 try:
                     api_res_doc.append(
                         {"api_res": self.embed_document(chunk),
-                        "error": None }
-                        )
+                         "error": None}
+                    )
                     break
 
                 except Exception as e:
 
-                        print(f"Error {e} occured for chunk {chunk_n} of document {i}")
-                        print(chunk)
-                        api_res_doc.append(
-                            {"api_res": None,
-                            "error": e })
+                    print(f"Error {e} occured for chunk {chunk_n} of document {i}")
+                    print(chunk)
+                    api_res_doc.append(
+                        {"api_res": None,
+                         "error": e})
 
             # average the embeddings of the chunks
             emb_lis = []
@@ -203,13 +195,13 @@ class EmbeddingModelOpenAI(EmbeddingModel):
                     emb_lis.append(api_res["api_res"])
 
             text = " ".join(chunk_lis)
-            embedding = np.mean(emb_lis, axis = 0)
+            embedding = np.mean(emb_lis, axis=0)
 
             api_res_list.append(
                 {"embedding": embedding,
-                "text": text,
-                "errors": [api_res["error"] for api_res in api_res_doc]}
-                )
+                 "text": text,
+                 "errors": [api_res["error"] for api_res in api_res_doc]}
+            )
 
         return api_res_list
 
@@ -234,7 +226,6 @@ class EmbeddingModelOpenAI(EmbeddingModel):
         errors = [api_res["errors"] for api_res in api_res_list]
 
         return {"embeddings": embeddings, "corpus": corpus, "errors": errors}
-
 
     def embed_document_list_splitting(self, document_list: list[str]) -> dict:
 
