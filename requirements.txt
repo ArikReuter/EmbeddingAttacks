@@ -1,6 +1,10 @@
-sentence-transformers==2.2.2
+# misc
 numpy==1.26.3
+pandas==2.1.4
 tqdm==4.65.0
+
+# embeddings
+sentence-transformers==2.2.2
 langchain==0.1.0
 openai==1.6.1
 langchain_openai==0.0.2
