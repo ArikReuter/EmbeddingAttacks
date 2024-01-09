@@ -2,6 +2,7 @@ from Embeddings.EmbeddingModelOpenAI import EmbeddingModelOpenAI
 from data import data_utils
 import pickle
 import time
+import os
 
 if __name__ == "__main__":
     data = data_utils.load_token_data()
@@ -16,6 +17,11 @@ if __name__ == "__main__":
         dict_cunk_lis.extend(data_utils.create_chunk_dict_list(text, {"id": doc_id, "author": author}))
     
     datetime = time.strftime("%Y%m%d_%H%M%S")
+
+    # create folder if not exists
+    if not os.path.exists("out/gutenberg_chunked"):
+        os.makedirs("out/gutenberg_chunked")
+
     with open(f"out/gutenberg_chunked/test01_{datetime}.pickle", "wb") as f:
         pickle.dump(dict_cunk_lis, f, protocol=3)  #use protocol 3 for compatibility with colab and python 3.6 ?
 
