@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import random
 
 
 def load_metadata():
@@ -59,3 +60,56 @@ def load_token_data():
     )
 
     return texts
+
+
+def split_into_chunks(text: str, max_chunksize:int = 300, min_chunksize:int = 10) -> list[str]:
+    """
+    Splits a text into chunks where each has a size that is randomly chosen between min_chunksize and max_chunksize
+    
+    Args:
+        text str: The text to split
+        max_chunksize (int, optional): The maximum chunksize. Defaults to 300.
+        min_chunksize (int, optional): The minimum chunksize. Defaults to 10.
+
+    Returns:
+        list[list[str]]: The text split into chunks
+    """
+
+    text = text.split(" ")
+
+    chunk_lens = []
+    
+    while sum(chunk_lens) < len(text):
+        chunk_lens.append(random.randint(min_chunksize, max_chunksize))
+
+    chunks = []
+
+    for i in range(len(chunk_lens)):
+        words_to_append = text[sum(chunk_lens[:i]):sum(chunk_lens[:i+1])]
+        chunks.append(" ".join(words_to_append))
+
+    return chunks
+
+
+def create_chunk_dict_list(text: str, metadata: dict, max_chunksize: int = 300, min_chunksize: int = 10) -> list[dict]:
+    """
+    Creates a list of dicts with the keys "text" and "metadata" from a text. The text is split into chunks where each has a size that is randomly chosen between min_chunksize and max_chunksize
+    
+    Args:
+        text (str): The text to split
+        metadata (dict): The metadata for the text
+        max_chunksize (int, optional): The maximum chunksize. Defaults to 300.
+        min_chunksize (int, optional): The minimum chunksize. Defaults to 10.
+
+    Returns:
+        list[dict]: The text split into chunks with metadata
+    """
+
+    chunks = split_into_chunks(text, max_chunksize, min_chunksize)
+
+    chunk_dicts = []
+
+    for chunk in chunks:
+        chunk_dicts.append({"text": chunk, "metadata": metadata})
+
+    return chunk_dicts
