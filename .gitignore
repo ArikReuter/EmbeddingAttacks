@@ -1,4 +1,9 @@
 /data/gutenberg/*
+/data/reddit/*.zst
+/data/reddit/*.txt
+/data/reddit/*.njson
+/data/reddit/*.csv
+/data/reddit/*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
