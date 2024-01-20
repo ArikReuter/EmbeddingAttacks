@@ -1,12 +1,20 @@
 import json
+import numpy as np
 import pandas as pd
-from cleantext import clean
+from cleantext.clean import clean
 import nltk
 from itertools import chain
+import re
+from tqdm import tqdm
 
-filename = "control_comments.njson"
+filename = "utterances.njson"
 min_words = 5
-min_sentences = 10
+min_train_sentences = 50
+min_test_sentences = 50
+
+with open("sensitive-subreddit-patterns.txt") as f:
+    patterns = f.read().splitlines()
+    SENSITIVE_PATTERNS = [re.compile(pattern) for pattern in patterns]
 
 def preprocess(cmt):
     cmt = json.loads(cmt)
@@ -43,30 +51,52 @@ def preprocess(cmt):
                       replace_with_currency_symbol="<CUR>",
                       lang="en") 
     body_sentences = nltk.sent_tokenize(body)
-    longer_body_sentences = [sent for sent in body_sentences if len(nltk.word_tokenize(sent)) > min_words]
-    cmt_filtered = [{
+    out = {
         "author": cmt["author"],
-        "utterance": sent,
+        "utterance": body,
         "subreddit": cmt["subreddit"],
         "thread_id": link_id,
         "id": cmt["id"],
-        "is_submission": is_submission} for sent in longer_body_sentences]
-    return cmt_filtered
+        "is_submission": is_submission,
+        "n_sentences":len(body_sentences)}
+    return out
 
 # TODO: filter utterances s.t. they have a minimum amount of words and split into sentences
 # And filter authors s.t. they have a minimum number of sentences
 # For each author split the utterances into train and test s.t. the different threads end up in same split
 # Also, all the sensitive content should be in test
 
-def read_to_df(filename):
-    with open(filename) as f:
-        comments_txt = f.read().splitlines()
-    df = pd.DataFrame.from_records(chain.from_iterable(map(preprocess, comments_txt)))
-    filtered_df = df.groupby("author").filter(lambda x: len(x) > min_sentences)
-    return filtered_df
+rng = np.random.default_rng()
 
-df = read_to_df("control_users_utterances.njson")
-df.to_csv("control_users_utterances.csv")
+with open("sensitive_utterances.njson") as f:
+    comments_txt = f.read().splitlines()
+df = pd.DataFrame.from_records(map(preprocess, comments_txt))
+df["is_sensitive"] = True
 
-df = read_to_df("sensitive_users_utterances.njson")
-df.to_csv("sensitive_users_utterances.csv")
+with open("not_sensitive_utterances.njson") as f:
+    comments_txt = f.read().splitlines()
+new_df = pd.DataFrame.from_records(map(preprocess, comments_txt))
+new_df["is_sensitive"] = False
+
+df = pd.concat((df, new_df)).reset_index(drop=True)
+
+filtered_df = df.groupby("author").filter(lambda x: sum(x.loc[~x["is_sensitive"], "n_sentences"]) > min_train_sentences)
+train_dfs = []
+test_dfs = [] 
+
+for author in tqdm(filtered_df["author"].unique()):
+    author_df = filtered_df[filtered_df["author"] == author].reset_index(drop=True)
+    not_sensitive_df = author_df.loc[~author_df["is_sensitive"]]
+    n = int(min_train_sentences / not_sensitive_df["n_sentences"].mean())
+    to_train = rng.choice(not_sensitive_df.index, n, p=not_sensitive_df["n_sentences"]/not_sensitive_df["n_sentences"].sum())
+    new_train_df = author_df.iloc[to_train]
+    new_test_df = author_df.drop(to_train)
+    if new_test_df.shape[0] < min_train_sentences: continue
+    train_dfs.append(new_train_df)
+    test_dfs.append(new_test_df)
+
+train_df = pd.concat(train_dfs)
+test_df = pd.concat(test_dfs) 
+
+train_df.to_csv("train_df.csv")
+test_df.to_csv("test_df.csv")
