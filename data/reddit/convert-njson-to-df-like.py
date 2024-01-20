@@ -61,11 +61,6 @@ def preprocess(cmt):
         "n_sentences":len(body_sentences)}
     return out
 
-# TODO: filter utterances s.t. they have a minimum amount of words and split into sentences
-# And filter authors s.t. they have a minimum number of sentences
-# For each author split the utterances into train and test s.t. the different threads end up in same split
-# Also, all the sensitive content should be in test
-
 rng = np.random.default_rng()
 
 with open("sensitive_utterances.njson") as f:
