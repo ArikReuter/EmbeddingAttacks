@@ -6,8 +6,8 @@ Arguably everything here could be accomplished by bash script
 However, we want to keep the lists of all authors and all sensitive authors
 """
 
-all_authors_file = "all_authors.txt"
-sensitive_authors_file = "sensitive_authors.txt"
+all_authors_file = "all-users.txt"
+sensitive_authors_file = "sensitive-users.txt"
 control_file = "control_users_sample_patterns.txt"
 trial_file = "sensitive_users_sample_patterns.txt"
 sample_size = 1000
