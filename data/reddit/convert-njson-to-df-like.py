@@ -65,12 +65,15 @@ rng = np.random.default_rng()
 
 with open("sensitive_utterances.njson") as f:
     comments_txt = f.read().splitlines()
-df = pd.DataFrame.from_records(map(preprocess, comments_txt))
+df = pd.DataFrame.from_records([preprocess(cmt) for cmt in tqdm(
+        comments_txt, "Cleaning sensitive_utteranes.nsjon")
+    ])
 df["is_sensitive"] = True
 
 with open("not_sensitive_utterances.njson") as f:
     comments_txt = f.read().splitlines()
-new_df = pd.DataFrame.from_records(map(preprocess, comments_txt))
+new_df = pd.DataFrame.from_records([preprocess(cmt) for cmt in tqdm(
+    comments_txt, "Cleaning not_sensitive_utterances.njson")])
 new_df["is_sensitive"] = False
 
 df = pd.concat((df, new_df)).reset_index(drop=True)
@@ -79,7 +82,7 @@ filtered_df = df.groupby("author").filter(lambda x: sum(x.loc[~x["is_sensitive"]
 train_dfs = []
 test_dfs = [] 
 
-for author in tqdm(filtered_df["author"].unique()):
+for author in tqdm(filtered_df["author"].unique(), "Test train splitting"):
     author_df = filtered_df[filtered_df["author"] == author].reset_index(drop=True)
     not_sensitive_df = author_df.loc[~author_df["is_sensitive"]]
     n = int(min_train_sentences / not_sensitive_df["n_sentences"].mean())
@@ -93,5 +96,5 @@ for author in tqdm(filtered_df["author"].unique()):
 train_df = pd.concat(train_dfs)
 test_df = pd.concat(test_dfs) 
 
-train_df.to_csv("train_df.csv")
-test_df.to_csv("test_df.csv")
+train_df.to_csv("reddit_train_df.csv", index=False)
+test_df.to_csv("reddit_test_df.csv", index=False)
