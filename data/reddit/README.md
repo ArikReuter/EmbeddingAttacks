@@ -33,4 +33,4 @@ following columns:
 - `n_sentences` - (int) How many sentences does `utterance` have?
 - `is_sensitive` - (bool) Is the utterance sensitive, as decided based on subreddit and nsfw flag.
 
-Also a result is `showcase.csv` with 4 users, each with an innocent and sensitive utterance.
+Also a result is a curated small dataset `showcase.csv` with 5 users, each with an innocent and sensitive utterance.
