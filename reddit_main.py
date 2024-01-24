@@ -277,7 +277,7 @@ if __name__ == "__main__":
                     f"Successfully saved pandas version of {tag} data to {data_dump_path}."
                 )
     else:
-        # Load the data required for binary classification.
+        logger.info("Loading predefined binary dataset components...")
         files = [
             files[2]
             for files in os.walk(
@@ -301,6 +301,10 @@ if __name__ == "__main__":
                 [file for file in files if "different_authors" in file][0],
             )
         )
+
+    # Remove the author column
+    same_authors_df = same_authors_df.drop(columns=[3074])
+    different_authors_df = different_authors_df.drop(columns=[3074])
 
     # Create binary classification dataset
     binary_train_df = pd.concat([same_authors_df, different_authors_df])
@@ -327,13 +331,13 @@ if __name__ == "__main__":
     Preliminary results:
     Evaluations on test data (AutoGluon internal):
     {
-        "accuracy": 0.9976394849785408,
-        "balanced_accuracy": 0.9976394849785408,
-        "mcc": 0.9952790029564413,
-        "roc_auc": 0.999949558842491,
-        "f1": 0.997639788868386,
-        "precision": 0.9975113704625418,
-        "recall": 0.9977682403433477
+        "accuracy": 0.9591845493562232,
+        "balanced_accuracy": 0.9591845493562232,
+        "mcc": 0.918374786025882,
+        "roc_auc": 0.9962794636114131,
+        "f1": 0.9591126015735844,
+        "precision": 0.9608062709966405,
+        "recall": 0.9574248927038627
     }
     """
     pass
