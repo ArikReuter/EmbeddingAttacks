@@ -1,3 +1,5 @@
+AutogluonModels/*
+
 /data/gutenberg/*
 /data/reddit/*.zst
 /data/reddit/*.txt

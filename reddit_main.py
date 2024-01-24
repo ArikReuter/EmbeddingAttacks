@@ -1,5 +1,6 @@
 import glob
 import itertools
+import random
 import time
 
 import pandas as pd
@@ -18,7 +19,7 @@ from data import data_utils
 
 # Embedding
 from Embeddings.EmbeddingModelOpenAI import EmbeddingModelOpenAI
-from globals import EMBEDDING_FLAG
+from globals import EMBEDDING_FLAG, BINARY_FLAG
 
 # Classification
 from autogluon.tabular import TabularDataset, TabularPredictor
@@ -30,11 +31,11 @@ logger = logging.getLogger(__name__)
 
 
 if __name__ == "__main__":
-    if EMBEDDING_FLAG:
-        datetime = time.strftime("%Y%m%d_%H%M%S")
-        if not os.path.exists("out/reddit_chunked"):
-            os.makedirs("out/reddit_chunked")
+    datetime = time.strftime("%Y%m%d_%H%M%S")
+    if not os.path.exists("out/reddit_chunked"):
+        os.makedirs("out/reddit_chunked")
 
+    if EMBEDDING_FLAG:
         reddit_train = pd.read_csv(
             os.path.join(os.getcwd(), "data", "reddit", "reddit_train_df_v1_1.csv")
         )
@@ -145,117 +146,194 @@ if __name__ == "__main__":
         )
 
     # --------------
-    # Classification
+    # Binary Dataset
     # --------------
-    # Note: training dataset contains no samples of sensitive posts/comments.
-    train_df = pd.DataFrame(
-        index=[
-            chunked_data["train"][i]["metadata"]["id"]
-            for i in range(len(chunked_data["train"]))
-        ],
-        data=np.array(
-            [
-                chunked_data["train"][i]["embedding"]
+    if BINARY_FLAG:
+        # Note: training dataset contains no samples of sensitive posts/comments.
+        train_df = pd.DataFrame(
+            index=[
+                chunked_data["train"][i]["metadata"]["id"]
                 for i in range(len(chunked_data["train"]))
-            ]
-        ),
-    )
-    train_df["author"] = [
-        chunked_data["train"][i]["metadata"]["author"]
-        for i in range(len(chunked_data["train"]))
-    ]
+            ],
+            data=np.array(
+                [
+                    chunked_data["train"][i]["embedding"]
+                    for i in range(len(chunked_data["train"]))
+                ]
+            ),
+        )
+        train_df["author"] = [
+            chunked_data["train"][i]["metadata"]["author"]
+            for i in range(len(chunked_data["train"]))
+        ]
 
-    test_df = pd.DataFrame(
-        index=[
-            chunked_data["test"][i]["metadata"]["id"]
-            for i in range(len(chunked_data["test"]))
-        ],
-        data=np.array(
-            [
-                chunked_data["test"][i]["embedding"]
+        test_df = pd.DataFrame(
+            index=[
+                chunked_data["test"][i]["metadata"]["id"]
                 for i in range(len(chunked_data["test"]))
-            ]
-        ),
-    )
-    test_df["author"] = [
-        chunked_data["test"][i]["metadata"]["author"]
-        for i in range(len(chunked_data["test"]))
-    ]
+            ],
+            data=np.array(
+                [
+                    chunked_data["test"][i]["embedding"]
+                    for i in range(len(chunked_data["test"]))
+                ]
+            ),
+        )
+        test_df["author"] = [
+            chunked_data["test"][i]["metadata"]["author"]
+            for i in range(len(chunked_data["test"]))
+        ]
 
-    logger.info(f"Successfully created train and test dataframes.")
+        logger.info(f"Successfully created train and test dataframes.")
 
-    # Sample pairs of samples from train set.
-    # Note: this is a very naive approach to create a binary classification dataset.
-
-    # Create pairs of samples from same author
-    same_author_pairs = []
-    for author in tqdm(train_df["author"].unique()):
-        temp = list(
-            itertools.combinations(
-                train_df[train_df["author"] == author].values, 2
+        # Create pairs of samples from different authors
+        different_author_pairs = []
+        for author in tqdm(train_df["author"].unique()):
+            temp = pd.DataFrame(
+                data=itertools.product(
+                    train_df[train_df["author"] != author].values,
+                    train_df[train_df["author"] == author].values,
+                ),
+                columns=["author_1", "author_2"],
             )
-        )
-        # For every tuple in the list, join the two embeddings to a single embedding.
-        same_author_pairs.extend(
-            [
-                np.concatenate(
-                    (
-                        temp[i][0],
-                        np.array([0]),
-                        temp[i][1]
-                    ), axis=None
-                ).tolist()
-                for i in range(len(temp))
-            ]
-        )
-    same_authors_df = pd.DataFrame(
-        data=same_author_pairs,
-    )
-    same_authors_df["label"] = 1
-    logger.info(f"Successfully created same author dataset.")
-    del same_author_pairs
+            temp = temp.sample(50 if len(temp) > 50 else len(temp))
+            different_author_pairs.extend(
+                [
+                    np.concatenate(
+                        (
+                            temp["author_1"].iloc[i],
+                            np.array([0]),
+                            temp["author_2"].iloc[i],
+                        ),
+                        axis=None,
+                    ).tolist()
+                    for i in range(len(temp))
+                ]
+            )
 
-    # Create pairs of samples from different authors
-    different_author_pairs = []
-    for author in tqdm(train_df["author"].unique()):
-        temp = list(
-                itertools.combinations(
-                    train_df[train_df["author"] != author].index, 2
+        different_authors_df = pd.DataFrame(
+            data=different_author_pairs,
+        )
+        different_authors_df["label"] = 0
+        logger.info(f"Successfully created different author dataset.")
+        del different_author_pairs
+
+        # Create pairs of samples from same author
+        same_author_pairs = []
+        for author in tqdm(train_df["author"].unique()):
+            temp = pd.DataFrame(
+                data=itertools.product(
+                    train_df[train_df["author"] == author].values,
+                    train_df[train_df["author"] == author].values,
+                ),
+                columns=["author_1", "author_2"],
+            )
+            temp = temp.sample(50 if len(temp) > 50 else len(temp))
+            same_author_pairs.extend(
+                [
+                    np.concatenate(
+                        (
+                            temp["author_1"].iloc[i],
+                            np.array([0]),
+                            temp["author_2"].iloc[i],
+                        ),
+                        axis=None,
+                    ).tolist()
+                    for i in range(len(temp))
+                ]
+            )
+        same_authors_df = pd.DataFrame(
+            data=same_author_pairs,
+        )
+        same_authors_df["label"] = 1
+        logger.info(f"Successfully created same author dataset.")
+        del same_author_pairs
+
+        for split, dataset in zip(["train", "test"], [train_df, test_df]):
+            data_dump_path = os.path.join(
+                os.path.dirname(__file__),
+                "out",
+                "reddit_chunked",
+                f"reddit_{split}_pandas_df_{datetime}.pickle",
+            )
+            with open(data_dump_path, "wb") as f:
+                pickle.dump(dataset, f, protocol=3)
+                logger.info(
+                    f"Successfully saved pandas version of data to {data_dump_path}."
                 )
+        for tag, dataset in zip(
+            ["same_authors", "different_authors"],
+            [same_authors_df, different_authors_df],
+        ):
+            data_dump_path = os.path.join(
+                os.path.dirname(__file__),
+                "out",
+                "reddit_chunked",
+                f"reddit_train_{tag}_df_{datetime}.pickle",
             )
-        # For every tuple in the list, join the two embeddings to a single embedding.
-        different_author_pairs.extend(
-            [
-                np.concatenate(
-                    (
-                        train_df.loc[temp[i][0]].values,
-                        np.array([0]),
-                        train_df.loc[temp[i][1]].values
-                    ), axis=None
-                ).tolist()
-                for i in range(len(temp))
-            ]
-        )
+            with open(data_dump_path, "wb") as f:
+                pickle.dump(dataset, f, protocol=3)
+                logger.info(
+                    f"Successfully saved pandas version of {tag} data to {data_dump_path}."
+                )
+    else:
+        # Load the data required for binary classification.
+        files = [
+            files[2]
+            for files in os.walk(
+                os.path.join(os.path.dirname(__file__), "out", "reddit_chunked")
+            )
+        ][0]
 
-    different_authors_df = pd.DataFrame(
-        data=different_author_pairs,
-    )
-    different_authors_df["label"] = 0
-    logger.info(f"Successfully created different author dataset.")
-    del different_author_pairs
+        same_authors_df = pd.read_pickle(
+            os.path.join(
+                os.path.dirname(__file__),
+                "out",
+                "reddit_chunked",
+                [file for file in files if "same_authors" in file][0],
+            )
+        )
+        different_authors_df = pd.read_pickle(
+            os.path.join(
+                os.path.dirname(__file__),
+                "out",
+                "reddit_chunked",
+                [file for file in files if "different_authors" in file][0],
+            )
+        )
 
     # Create binary classification dataset
     binary_train_df = pd.concat([same_authors_df, different_authors_df])
     logger.info(f"Successfully created binary classification dataset.")
 
+    # --------------
+    # Classification
+    # --------------
     logger.info(f"Fitting predictor...")
-    predictor = TabularPredictor(label="author", problem_type="binary")
+    predictor = TabularPredictor(label="label", problem_type="binary")
     predictor.fit(
-        train_df, time_limit=60 * 10, presets="medium_quality", ag_args_fit={"num_gpus": 1}
+        binary_train_df,
+        time_limit=60 * 10,
+        presets="medium_quality",
+        ag_args_fit={"num_gpus": 1},
     )
-
+    # print the in-sample score
     logger.info(
         f"Predictor performance on classification: "
-        f"{predictor.evaluate(test_df, silent=False)}"
+        f"{predictor.evaluate(binary_train_df, silent=False)}"
     )
+
+    """
+    Preliminary results:
+    Evaluations on test data (AutoGluon internal):
+    {
+        "accuracy": 0.9976394849785408,
+        "balanced_accuracy": 0.9976394849785408,
+        "mcc": 0.9952790029564413,
+        "roc_auc": 0.999949558842491,
+        "f1": 0.997639788868386,
+        "precision": 0.9975113704625418,
+        "recall": 0.9977682403433477
+    }
+    """
     pass

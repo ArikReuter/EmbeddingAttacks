@@ -1,1 +1,2 @@
 EMBEDDING_FLAG = False
+BINARY_FLAG = False
