@@ -17,8 +17,10 @@ from data import data_utils
 
 # Embedding
 from Embeddings.EmbeddingModelOpenAI import EmbeddingModelOpenAI
-
 from globals import EMBEDDING_FLAG
+
+# Classification
+from autogluon.tabular import TabularDataset, TabularPredictor
 
 import logging
 
@@ -128,23 +130,12 @@ if __name__ == "__main__":
         ][0]
 
         for split in ["train", "test"]:
-            # Load chunked data
-            file = [file for file in files if split in file and "chunks" in file][0]
-            with open(
-                os.path.join(os.path.dirname(__file__), "out", "reddit_chunked", file),
-                "rb",
-            ) as f:
-                chunked_data[split] = pickle.load(f)
-
             file = [file for file in files if split in file and "embedding" in file][0]
             with open(
                 os.path.join(os.path.dirname(__file__), "out", "reddit_chunked", file),
                 "rb",
             ) as f:
-                corpus_embeddings = pickle.load(f)
-
-            for i, chunk_dict in enumerate(chunked_data[split]):
-                chunk_dict["embedding"] = corpus_embeddings[i]
+                chunked_data[split] = pickle.load(f)
 
         logger.info(
             f"Successfully loaded:"
@@ -153,3 +144,10 @@ if __name__ == "__main__":
         )
 
         pass
+
+    # --------------
+    # Classification
+    # --------------
+    # Create dataframe with all embeddings and metadata of the training data.
+    # The dataframe is used to train the classifier.
+    train_df = pd.DataFrame(chunked_data["train"])
