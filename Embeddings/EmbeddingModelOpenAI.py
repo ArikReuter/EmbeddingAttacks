@@ -17,7 +17,8 @@ class EmbeddingModelOpenAI(EmbeddingModel):
                  model_name: str = "text-embedding-ada-002",
                  context_len: int = 8191,
                  openai_api_key: str = os.environ['OpenAI_Key_DataSecurity'],
-                 max_retries: int = 10):
+                 max_retries: int = 10,
+                 tokenizer_str: str = None):
 
         """
 
@@ -27,9 +28,11 @@ class EmbeddingModelOpenAI(EmbeddingModel):
             context_len (int): maximum number of tokens to use
             openai_api_key (str): API key to use the OpenAI API
             max_retries (int): maximum number of retries to use when calling the OpenAI API
+            tokenizer_str (str): tokenizer to use
 
         """
 
+        self.tokenizer_str = tokenizer_str
         self.deployment_name = deployment_name
         self.model_name = model_name
         self.max_retries = max_retries

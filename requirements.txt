@@ -8,3 +8,4 @@ sentence-transformers==2.2.2
 langchain==0.1.0
 openai==1.6.1
 langchain_openai==0.0.2
+

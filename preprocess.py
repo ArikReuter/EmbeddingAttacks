@@ -4,38 +4,62 @@ import pickle
 import time
 import os
 
+
+import logging
+
+logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 if __name__ == "__main__":
-    data = data_utils.load_token_data()
-
     embeddings_model = EmbeddingModelOpenAI()
-    
-    data['text'] = data['text'].apply(lambda x: ' '.join(x)).tolist()  # join tokens to text
 
-    dict_cunk_lis = []
+    data = data_utils.load_token_data()
+    data["text"] = (
+        data["text"].apply(lambda x: " ".join(x)).tolist()
+    )  # join tokens to text
 
-    for doc_id, text, author in (zip(data.index, data["text"], data["author"])):
-        dict_cunk_lis.extend(data_utils.create_chunk_dict_list(text, {"id": doc_id, "author": author}))
-    
-    datetime = time.strftime("%Y%m%d_%H%M%S")
+    dict_chunk_list = []
+    for doc_id, text, author in zip(data.index, data["text"], data["author"]):
+        dict_chunk_list.extend(
+            data_utils.create_chunk_dict_list(text, {"id": doc_id, "author": author})
+        )
 
     # create folder if not exists
     if not os.path.exists("out/gutenberg_chunked"):
         os.makedirs("out/gutenberg_chunked")
 
-    with open(f"out/gutenberg_chunked/test01_{datetime}.pickle", "wb") as f:
-        pickle.dump(dict_cunk_lis, f, protocol=3)  #use protocol 3 for compatibility with colab and python 3.6 ?
+    datetime = time.strftime("%Y%m%d_%H%M%S")
+    data_dump_path = os.path.join(
+        os.path.dirname(__file__),
+        "out",
+        "gutenberg_chunked",
+        f"test01_{datetime}.pickle",
+    )
+    with open(data_dump_path, "wb") as f:
+        pickle.dump(
+            dict_chunk_list, f, protocol=3
+        )  # use protocol 3 for compatibility with colab and python 3.6 ?
+        logger.info(f"Successfully saved chunked data to {data_dump_path}.")
 
+    chunk_list = [chunk_dict["text"] for chunk_dict in dict_chunk_list]
+    corpus_embeddings = embeddings_model.embed_document_list(chunk_list)
 
-    chunk_lis = [chunk_dict["text"] for chunk_dict in dict_cunk_lis]
+    assert len(corpus_embeddings) == len(
+        dict_chunk_list
+    ), "Number of embeddings and number of chunks do not match."
 
-    corpus_embeddings = embeddings_model.embed_document_list(chunk_lis)
-
-    assert len(corpus_embeddings) == len(dict_cunk_lis), "Number of embeddings and number of chunks do not match"
-
-    for i, chunk_dict in enumerate(dict_cunk_lis):
+    for i, chunk_dict in enumerate(dict_chunk_list):
         chunk_dict["embedding"] = corpus_embeddings[i]
 
-    with open(f"out/gutenberg_chunked/test01_embeddings_{datetime}.pickle", "wb") as f:
-        pickle.dump(dict_cunk_lis, f, protocol=3)
+    data_dump_path = os.path.join(
+        os.path.dirname(__file__),
+        "out",
+        "gutenberg_chunked",
+        f"test01_embeddings_{datetime}.pickle",
+    )
+    with open(data_dump_path, "wb") as f:
+        pickle.dump(dict_chunk_list, f, protocol=3)
+        logger.info(f"Successfully saved embedding data to {data_dump_path}.")
 
-    print("Done")
+    logger.info("Done")

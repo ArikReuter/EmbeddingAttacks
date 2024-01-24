@@ -1,10 +1,12 @@
 from Embeddings.EmbeddingModelOpenAI import EmbeddingModelOpenAI
 from data import data_utils
 
-if __name__ == "__main__":
-    data = data_utils.load_token_data()
+import logging
 
-    embeddings_model = EmbeddingModelOpenAI()
-    corpus_embeddings = embeddings_model.embed_document_list(
-        data["text"].str.join(" ")
-    )
+logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+if __name__ == "__main__":
+    embedded_data = data_utils.load_embedded_data()
+    logger.info(f"Successfully loaded embedded data for {len(embedded_data)} texts.")
+
