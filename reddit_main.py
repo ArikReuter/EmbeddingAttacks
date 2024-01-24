@@ -1,4 +1,5 @@
 import glob
+import itertools
 import time
 
 import pandas as pd
@@ -143,11 +144,118 @@ if __name__ == "__main__":
             f" {len(chunked_data['test'])} test samples."
         )
 
-        pass
-
     # --------------
     # Classification
     # --------------
-    # Create dataframe with all embeddings and metadata of the training data.
-    # The dataframe is used to train the classifier.
-    train_df = pd.DataFrame(chunked_data["train"])
+    # Note: training dataset contains no samples of sensitive posts/comments.
+    train_df = pd.DataFrame(
+        index=[
+            chunked_data["train"][i]["metadata"]["id"]
+            for i in range(len(chunked_data["train"]))
+        ],
+        data=np.array(
+            [
+                chunked_data["train"][i]["embedding"]
+                for i in range(len(chunked_data["train"]))
+            ]
+        ),
+    )
+    train_df["author"] = [
+        chunked_data["train"][i]["metadata"]["author"]
+        for i in range(len(chunked_data["train"]))
+    ]
+
+    test_df = pd.DataFrame(
+        index=[
+            chunked_data["test"][i]["metadata"]["id"]
+            for i in range(len(chunked_data["test"]))
+        ],
+        data=np.array(
+            [
+                chunked_data["test"][i]["embedding"]
+                for i in range(len(chunked_data["test"]))
+            ]
+        ),
+    )
+    test_df["author"] = [
+        chunked_data["test"][i]["metadata"]["author"]
+        for i in range(len(chunked_data["test"]))
+    ]
+
+    logger.info(f"Successfully created train and test dataframes.")
+
+    # Sample pairs of samples from train set.
+    # Note: this is a very naive approach to create a binary classification dataset.
+
+    # Create pairs of samples from same author
+    same_author_pairs = []
+    for author in tqdm(train_df["author"].unique()):
+        temp = list(
+            itertools.combinations(
+                train_df[train_df["author"] == author].values, 2
+            )
+        )
+        # For every tuple in the list, join the two embeddings to a single embedding.
+        same_author_pairs.extend(
+            [
+                np.concatenate(
+                    (
+                        temp[i][0],
+                        np.array([0]),
+                        temp[i][1]
+                    ), axis=None
+                ).tolist()
+                for i in range(len(temp))
+            ]
+        )
+    same_authors_df = pd.DataFrame(
+        data=same_author_pairs,
+    )
+    same_authors_df["label"] = 1
+    logger.info(f"Successfully created same author dataset.")
+    del same_author_pairs
+
+    # Create pairs of samples from different authors
+    different_author_pairs = []
+    for author in tqdm(train_df["author"].unique()):
+        temp = list(
+                itertools.combinations(
+                    train_df[train_df["author"] != author].index, 2
+                )
+            )
+        # For every tuple in the list, join the two embeddings to a single embedding.
+        different_author_pairs.extend(
+            [
+                np.concatenate(
+                    (
+                        train_df.loc[temp[i][0]].values,
+                        np.array([0]),
+                        train_df.loc[temp[i][1]].values
+                    ), axis=None
+                ).tolist()
+                for i in range(len(temp))
+            ]
+        )
+
+    different_authors_df = pd.DataFrame(
+        data=different_author_pairs,
+    )
+    different_authors_df["label"] = 0
+    logger.info(f"Successfully created different author dataset.")
+    del different_author_pairs
+
+    # Create binary classification dataset
+    binary_train_df = pd.concat([same_authors_df, different_authors_df])
+    logger.info(f"Successfully created binary classification dataset.")
+
+    logger.info(f"Fitting predictor...")
+    predictor = TabularPredictor(label="author", problem_type="binary")
+    predictor.fit(
+        train_df, time_limit=60 * 10, presets="medium_quality", ag_args_fit={"num_gpus": 1}
+    )
+
+    logger.info(
+        f"Predictor performance on classification: "
+        f"{predictor.evaluate(test_df, silent=False)}"
+    )
+    pass
