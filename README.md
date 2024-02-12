@@ -22,3 +22,6 @@ EmbeddingAttacks \
 |   |   ├── *RS_2019-04.zst* \
 |   |   ├── *RC_2019-04.zst* \
 ├── embeddings 
+
+## Report draft
+https://www.overleaf.com/5799997986nqctndwqgsjd#390f6b
