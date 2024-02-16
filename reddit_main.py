@@ -29,6 +29,7 @@ from globals import (
     CHUNKING_FLAG,
     NUM_DESIRED_AUTHORS,
     NUM_DESIRED_SAMPLES,
+    MODEL_LOAD_NAME,
 )
 
 # Classification
@@ -123,6 +124,7 @@ if __name__ == "__main__":
                 "rb",
             ) as f:
                 chunked_data[split] = pickle.load(f)
+            logger.info(f"Successfully loaded file with name: {file}.")
 
         logger.info(
             f"Successfully loaded:"
@@ -190,6 +192,8 @@ if __name__ == "__main__":
             ) as f:
                 chunked_data[split] = pickle.load(f)
 
+            logger.info(f"Successfully loaded file with name: {file}.")
+
         logger.info(
             f"Successfully loaded:"
             f" {len(chunked_data['train'])} training samples & "
@@ -200,7 +204,6 @@ if __name__ == "__main__":
     # Binary Dataset
     # --------------
     if CREATE_BINARY_DATASET_FLAG:
-        NUM_DESIRED_AUTHORS = 10
         # --------------------------------
         # Create train and test dataframes
         # --------------------------------
@@ -489,18 +492,17 @@ if __name__ == "__main__":
     # --------------
     if FIT_FLAG:
         logger.info(f"Fitting predictor...")
-        predictor = TabularPredictor(label="label", problem_type="binary")
+        predictor = TabularPredictor(label="label", problem_type="binary", verbosity=3)
         predictor.fit(
             binary_train_df,
-            time_limit=60 * 60,
-            presets="high_quality",
+            time_limit=60 * 60 * 1/8,
+            presets="medium_quality",
             # ag_args_fit={"num_gpus": 1},
         )
     else:
-        # Load the last saved autogloun model from AutogluonModels folder.
-        # This is useful for testing and debugging.
+        # Load the last saved Autogloun model from AutogluonModels folder.
         model_path = os.path.join(
-            os.path.dirname(__file__), "AutogluonModels", "ag-20240124_151202"
+            os.path.dirname(__file__), "AutogluonModels", MODEL_LOAD_NAME
         )
         predictor = TabularPredictor.load(model_path)
         logger.info(f"Successfully loaded predictor from {model_path}.")
