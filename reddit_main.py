@@ -12,6 +12,8 @@ import seaborn as sns
 import pickle
 import os
 
+from autogluon.tabular.models import TextPredictorModel
+from autogluon.multimodal import MultiModalPredictor
 from tqdm import tqdm
 
 # Data
@@ -19,11 +21,14 @@ from data import data_utils
 
 # Embedding
 from Embeddings.EmbeddingModelOpenAI import EmbeddingModelOpenAI
+
 from globals import (
     EMBEDDING_FLAG,
     CREATE_BINARY_DATASET_FLAG,
     FIT_FLAG,
     CHUNKING_FLAG,
+    NUM_DESIRED_AUTHORS,
+    NUM_DESIRED_SAMPLES
 )
 
 # Classification
@@ -86,7 +91,7 @@ if __name__ == "__main__":
                 os.path.dirname(__file__),
                 "out",
                 "reddit_chunked",
-                f"reddit_{split}_chunks_{datetime}.pickle",
+                f"reddit_{split}_chunks{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_{datetime}.pickle",
             )
 
             with open(data_dump_path, "wb") as f:
@@ -151,7 +156,7 @@ if __name__ == "__main__":
                 os.path.dirname(__file__),
                 "out",
                 "reddit_chunked",
-                f"reddit_{split}_embeddings_{datetime}.pickle",
+                f"reddit_{split}_embedd{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_ings_{datetime}.pickle",
             )
             with open(data_dump_path, "wb") as f:
                 pickle.dump(dict_chunk_list, f, protocol=3)
@@ -195,7 +200,7 @@ if __name__ == "__main__":
     # Binary Dataset
     # --------------
     if CREATE_BINARY_DATASET_FLAG:
-        num_desired_authors = 10
+        NUM_DESIRED_AUTHORS = 10
         # --------------------------------
         # Create train and test dataframes
         # --------------------------------
@@ -210,12 +215,17 @@ if __name__ == "__main__":
                     chunked_data["train"][i]["embedding"]
                     for i in range(len(chunked_data["train"]))
                 ]
-            ),
+            )
         )
-        train_df["author"] = [
-            chunked_data["train"][i]["metadata"]["author"]
-            for i in range(len(chunked_data["train"]))
-        ]
+        # train_df["author"] = [
+        #     chunked_data["train"][i]["metadata"]["author"]
+        #     for i in range(len(chunked_data["train"]))
+        # ]
+        for meta_data_key in chunked_data["train"][0]["metadata"].keys():
+            train_df[meta_data_key] = [
+                chunked_data["train"][i]["metadata"][meta_data_key]
+                for i in range(len(chunked_data["train"]))
+            ]
 
         test_df = pd.DataFrame(
             index=[
@@ -227,12 +237,17 @@ if __name__ == "__main__":
                     chunked_data["test"][i]["embedding"]
                     for i in range(len(chunked_data["test"]))
                 ]
-            ),
+            )
         )
-        test_df["author"] = [
-            chunked_data["test"][i]["metadata"]["author"]
-            for i in range(len(chunked_data["test"]))
-        ]
+        # test_df["author"] = [
+        #     chunked_data["test"][i]["metadata"]["author"]
+        #     for i in range(len(chunked_data["test"]))
+        # ]
+        for meta_data_key in chunked_data["test"][0]["metadata"].keys():
+            test_df[meta_data_key] = [
+                chunked_data["test"][i]["metadata"][meta_data_key]
+                for i in range(len(chunked_data["test"]))
+            ]
         logger.info(f"Successfully created train and test dataframes.")
 
         # -------------------------------------------------------------------
@@ -245,7 +260,7 @@ if __name__ == "__main__":
         for split, split_df in zip(["train", "test"], [train_df, test_df]):
             # Create pairs of samples from different authors
             different_author_pairs = []
-            for author in tqdm(split_df["author"].unique()[:num_desired_authors]):
+            for author in tqdm(split_df["author"].unique()[:NUM_DESIRED_AUTHORS]):
                 temp = pd.DataFrame(
                     data=itertools.product(
                         split_df[split_df["author"] != author].values,
@@ -253,7 +268,7 @@ if __name__ == "__main__":
                     ),
                     columns=["author_1", "author_2"],
                 )
-                temp = temp.sample(100 if len(temp) > 100 else len(temp), replace=False)
+                temp = temp.sample(NUM_DESIRED_SAMPLES if len(temp) > NUM_DESIRED_SAMPLES else len(temp), replace=False)
                 different_author_pairs.extend(
                     [
                         np.concatenate(
@@ -280,7 +295,7 @@ if __name__ == "__main__":
 
             # Create pairs of samples from same author
             same_author_pairs = []
-            for author in tqdm(split_df["author"].unique()[:num_desired_authors]):
+            for author in tqdm(split_df["author"].unique()[:NUM_DESIRED_AUTHORS]):
                 temp = pd.DataFrame(
                     data=itertools.product(
                         split_df[split_df["author"] == author].values,
@@ -288,7 +303,7 @@ if __name__ == "__main__":
                     ),
                     columns=["author_1", "author_2"],
                 )
-                temp = temp.sample(100 if len(temp) > 100 else len(temp), replace=False)
+                temp = temp.sample(NUM_DESIRED_SAMPLES if len(temp) > NUM_DESIRED_SAMPLES else len(temp), replace=False)
                 same_author_pairs.extend(
                     [
                         np.concatenate(
@@ -317,7 +332,7 @@ if __name__ == "__main__":
                 os.path.dirname(__file__),
                 "out",
                 "reddit_chunked",
-                f"reddit_{split}_pandas_df_{datetime}.pickle",
+                f"reddit_{split}_pandas{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
             )
             with open(data_dump_path, "wb") as f:
                 pickle.dump(split_df, f, protocol=3)
@@ -333,7 +348,7 @@ if __name__ == "__main__":
                     os.path.dirname(__file__),
                     "out",
                     "reddit_chunked",
-                    f"reddit_{split}_{tag}_df_{datetime}.pickle",
+                    f"reddit_{split}_{tag}_{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
                 )
                 with open(data_dump_path, "wb") as f:
                     pickle.dump(dataset, f, protocol=3)
@@ -454,13 +469,24 @@ if __name__ == "__main__":
     # --------------
     if FIT_FLAG:
         logger.info(f"Fitting predictor...")
-        predictor = TabularPredictor(label="label", problem_type="binary")
+        # Use the TextPredictorModel from AutoGluon to fit the binary classification dataset.
+        predictor = MultiModalPredictor(
+            label="label", problem_type="binary", eval_metric="acc"
+        )
         predictor.fit(
             binary_train_df,
-            time_limit=60 * 60 * 1 / 10,
-            presets="high_quality",
+            time_limit=60 * 60,
+            presets="medium_quality",
             # ag_args_fit={"num_gpus": 1},
         )
+
+        # predictor = TabularPredictor(label="label", problem_type="binary")
+        # predictor.fit(
+        #     binary_train_df,
+        #     time_limit=60 * 60 * 1 / 10,
+        #     presets="high_quality",
+        #     # ag_args_fit={"num_gpus": 1},
+        # )
     else:
         # Load the last saved autogloun model from AutogluonModels folder.
         # This is useful for testing and debugging.
@@ -483,4 +509,3 @@ if __name__ == "__main__":
     logger.info(
         f"Predictor test performance on classification: {predictor_results['test']}"
     )
-
