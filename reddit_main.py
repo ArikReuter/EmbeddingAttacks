@@ -28,7 +28,7 @@ from globals import (
     FIT_FLAG,
     CHUNKING_FLAG,
     NUM_DESIRED_AUTHORS,
-    NUM_DESIRED_SAMPLES
+    NUM_DESIRED_SAMPLES,
 )
 
 # Classification
@@ -215,7 +215,7 @@ if __name__ == "__main__":
                     chunked_data["train"][i]["embedding"]
                     for i in range(len(chunked_data["train"]))
                 ]
-            )
+            ),
         )
         # train_df["author"] = [
         #     chunked_data["train"][i]["metadata"]["author"]
@@ -237,7 +237,7 @@ if __name__ == "__main__":
                     chunked_data["test"][i]["embedding"]
                     for i in range(len(chunked_data["test"]))
                 ]
-            )
+            ),
         )
         # test_df["author"] = [
         #     chunked_data["test"][i]["metadata"]["author"]
@@ -268,7 +268,12 @@ if __name__ == "__main__":
                     ),
                     columns=["author_1", "author_2"],
                 )
-                temp = temp.sample(NUM_DESIRED_SAMPLES if len(temp) > NUM_DESIRED_SAMPLES else len(temp), replace=False)
+                temp = temp.sample(
+                    NUM_DESIRED_SAMPLES
+                    if len(temp) > NUM_DESIRED_SAMPLES
+                    else len(temp),
+                    replace=False,
+                )
                 different_author_pairs.extend(
                     [
                         np.concatenate(
@@ -303,7 +308,12 @@ if __name__ == "__main__":
                     ),
                     columns=["author_1", "author_2"],
                 )
-                temp = temp.sample(NUM_DESIRED_SAMPLES if len(temp) > NUM_DESIRED_SAMPLES else len(temp), replace=False)
+                temp = temp.sample(
+                    NUM_DESIRED_SAMPLES
+                    if len(temp) > NUM_DESIRED_SAMPLES
+                    else len(temp),
+                    replace=False,
+                )
                 same_author_pairs.extend(
                     [
                         np.concatenate(
@@ -384,6 +394,7 @@ if __name__ == "__main__":
                     file_name,
                 )
             )
+            logger.info(f"Successfully loaded file with name: {file_name}")
 
             all_file_names = [
                 file for file in files if "different_authors" in file and split in file
@@ -401,18 +412,27 @@ if __name__ == "__main__":
                     file_name,
                 )
             )
+            logger.info(f"Successfully loaded file with name: {file_name}")
 
     # Remove the author column to avoid data leakage.
     for split in ["train", "test"]:
         same_and_diff_authors_data_dict[split][
             "same_authors"
         ] = same_and_diff_authors_data_dict[split]["same_authors"].drop(
-            columns=[3074, 1536]
+            columns=[
+                # 3074, 1536
+                3083,
+                1538,
+            ]
         )
         same_and_diff_authors_data_dict[split][
             "different_authors"
         ] = same_and_diff_authors_data_dict[split]["different_authors"].drop(
-            columns=[3074, 1536]
+            columns=[
+                # 3074, 1536
+                3083,
+                1538,
+            ]
         )
 
     # Combine the "same_authors" and "different_authors" datasets.
@@ -469,24 +489,13 @@ if __name__ == "__main__":
     # --------------
     if FIT_FLAG:
         logger.info(f"Fitting predictor...")
-        # Use the TextPredictorModel from AutoGluon to fit the binary classification dataset.
-        predictor = MultiModalPredictor(
-            label="label", problem_type="binary", eval_metric="acc"
-        )
+        predictor = TabularPredictor(label="label", problem_type="binary")
         predictor.fit(
             binary_train_df,
             time_limit=60 * 60,
-            presets="medium_quality",
+            presets="high_quality",
             # ag_args_fit={"num_gpus": 1},
         )
-
-        # predictor = TabularPredictor(label="label", problem_type="binary")
-        # predictor.fit(
-        #     binary_train_df,
-        #     time_limit=60 * 60 * 1 / 10,
-        #     presets="high_quality",
-        #     # ag_args_fit={"num_gpus": 1},
-        # )
     else:
         # Load the last saved autogloun model from AutogluonModels folder.
         # This is useful for testing and debugging.
@@ -509,3 +518,5 @@ if __name__ == "__main__":
     logger.info(
         f"Predictor test performance on classification: {predictor_results['test']}"
     )
+
+    pass
