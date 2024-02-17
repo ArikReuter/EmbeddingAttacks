@@ -249,7 +249,7 @@ if __name__ == "__main__":
             chunked_data["test"][i]["metadata"][meta_data_key]
             for i in range(len(chunked_data["test"]))
         ]
-    logger.info(f"Successfully created train and test dataframes.")
+    logger.info(f"Successfully created train and test dataframes with {NUM_DESIRED_AUTHORS} authors.")
 
     # Filter the train and test dataframes for the NUM_DESIRED_AUTHORS with the most samples
     authors_with_most_samples = (
@@ -313,7 +313,7 @@ if __name__ == "__main__":
                     "different_authors"
                 ] = different_authors_df
                 logger.info(
-                    f"Successfully created different author dataset for {split}."
+                    f"Successfully created different author dataset for {split}ing."
                 )
                 del different_author_pairs
 
@@ -351,7 +351,7 @@ if __name__ == "__main__":
                 )
                 same_authors_df["label"] = 1
                 same_and_diff_authors_data_dict[split]["same_authors"] = same_authors_df
-                logger.info(f"Successfully created same author dataset for {split}.")
+                logger.info(f"Successfully created same author dataset for {split}ing.")
                 del same_author_pairs
 
                 # -----------------------------------
