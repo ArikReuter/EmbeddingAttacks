@@ -30,6 +30,8 @@ from globals import (
     NUM_DESIRED_AUTHORS,
     NUM_DESIRED_SAMPLES,
     MODEL_LOAD_NAME,
+    CALIBRATE_FLAG,
+    BINARY,
 )
 
 # Classification
@@ -200,303 +202,327 @@ if __name__ == "__main__":
             f" {len(chunked_data['test'])} test samples."
         )
 
+    # --------------------------------
+    # Create train and test dataframes
+    # --------------------------------
+    # Note: training dataset contains no samples of sensitive posts/comments.
+    train_df = pd.DataFrame(
+        index=[
+            chunked_data["train"][i]["metadata"]["id"]
+            for i in range(len(chunked_data["train"]))
+        ],
+        data=np.array(
+            [
+                chunked_data["train"][i]["embedding"]
+                for i in range(len(chunked_data["train"]))
+            ]
+        ),
+    )
+    # train_df["author"] = [
+    #     chunked_data["train"][i]["metadata"]["author"]
+    #     for i in range(len(chunked_data["train"]))
+    # ]
+    for meta_data_key in chunked_data["train"][0]["metadata"].keys():
+        train_df[meta_data_key] = [
+            chunked_data["train"][i]["metadata"][meta_data_key]
+            for i in range(len(chunked_data["train"]))
+        ]
+
+    test_df = pd.DataFrame(
+        index=[
+            chunked_data["test"][i]["metadata"]["id"]
+            for i in range(len(chunked_data["test"]))
+        ],
+        data=np.array(
+            [
+                chunked_data["test"][i]["embedding"]
+                for i in range(len(chunked_data["test"]))
+            ]
+        ),
+    )
+    # test_df["author"] = [
+    #     chunked_data["test"][i]["metadata"]["author"]
+    #     for i in range(len(chunked_data["test"]))
+    # ]
+    for meta_data_key in chunked_data["test"][0]["metadata"].keys():
+        test_df[meta_data_key] = [
+            chunked_data["test"][i]["metadata"][meta_data_key]
+            for i in range(len(chunked_data["test"]))
+        ]
+    logger.info(f"Successfully created train and test dataframes.")
+
+    # Filter the train and test dataframes for the NUM_DESIRED_AUTHORS with the most samples
+    authors_with_most_samples = (
+        train_df["author"].value_counts()[:NUM_DESIRED_AUTHORS].index
+    )
+    train_df = train_df[train_df["author"].isin(authors_with_most_samples)]
+    test_df = test_df[test_df["author"].isin(authors_with_most_samples)]
+
+    np.testing.assert_array_equal(
+        train_df["author"].unique(), test_df["author"].unique()
+    )
+
     # --------------
     # Binary Dataset
     # --------------
-    if CREATE_BINARY_DATASET_FLAG:
-        # --------------------------------
-        # Create train and test dataframes
-        # --------------------------------
-        # Note: training dataset contains no samples of sensitive posts/comments.
-        train_df = pd.DataFrame(
-            index=[
-                chunked_data["train"][i]["metadata"]["id"]
-                for i in range(len(chunked_data["train"]))
-            ],
-            data=np.array(
-                [
-                    chunked_data["train"][i]["embedding"]
-                    for i in range(len(chunked_data["train"]))
-                ]
-            ),
-        )
-        # train_df["author"] = [
-        #     chunked_data["train"][i]["metadata"]["author"]
-        #     for i in range(len(chunked_data["train"]))
-        # ]
-        for meta_data_key in chunked_data["train"][0]["metadata"].keys():
-            train_df[meta_data_key] = [
-                chunked_data["train"][i]["metadata"][meta_data_key]
-                for i in range(len(chunked_data["train"]))
-            ]
+    if BINARY:  # else MULTICLASS
+        if CREATE_BINARY_DATASET_FLAG:
+            # -------------------------------------------------------------------
+            # Create same and different author datasets for binary classification
+            # -------------------------------------------------------------------
+            same_and_diff_authors_data_dict = {
+                "train": {"same_authors": None, "different_authors": None},
+                "test": {"same_authors": None, "different_authors": None},
+            }
+            for split, split_df in zip(["train", "test"], [train_df, test_df]):
+                # Create pairs of samples from different authors
+                different_author_pairs = []
+                for author in tqdm(split_df["author"]):
+                    temp = pd.DataFrame(
+                        data=itertools.product(
+                            split_df[split_df["author"] != author].values,
+                            split_df[split_df["author"] == author].values,
+                        ),
+                        columns=["author_1", "author_2"],
+                    )
+                    temp = temp.sample(
+                        NUM_DESIRED_SAMPLES
+                        if len(temp) > NUM_DESIRED_SAMPLES
+                        else len(temp),
+                        replace=False,
+                    )
+                    different_author_pairs.extend(
+                        [
+                            np.concatenate(
+                                (
+                                    temp["author_1"].iloc[i],
+                                    np.array([0]),
+                                    temp["author_2"].iloc[i],
+                                ),
+                                axis=None,
+                            ).tolist()
+                            for i in range(len(temp))
+                        ]
+                    )
 
-        test_df = pd.DataFrame(
-            index=[
-                chunked_data["test"][i]["metadata"]["id"]
-                for i in range(len(chunked_data["test"]))
-            ],
-            data=np.array(
-                [
-                    chunked_data["test"][i]["embedding"]
-                    for i in range(len(chunked_data["test"]))
-                ]
-            ),
-        )
-        # test_df["author"] = [
-        #     chunked_data["test"][i]["metadata"]["author"]
-        #     for i in range(len(chunked_data["test"]))
-        # ]
-        for meta_data_key in chunked_data["test"][0]["metadata"].keys():
-            test_df[meta_data_key] = [
-                chunked_data["test"][i]["metadata"][meta_data_key]
-                for i in range(len(chunked_data["test"]))
-            ]
-        logger.info(f"Successfully created train and test dataframes.")
-
-        # -------------------------------------------------------------------
-        # Create same and different author datasets for binary classification
-        # -------------------------------------------------------------------
-        same_and_diff_authors_data_dict = {
-            "train": {"same_authors": None, "different_authors": None},
-            "test": {"same_authors": None, "different_authors": None},
-        }
-        for split, split_df in zip(["train", "test"], [train_df, test_df]):
-            # Create pairs of samples from different authors
-            different_author_pairs = []
-            for author in tqdm(split_df["author"].unique()[:NUM_DESIRED_AUTHORS]):
-                temp = pd.DataFrame(
-                    data=itertools.product(
-                        split_df[split_df["author"] != author].values,
-                        split_df[split_df["author"] == author].values,
-                    ),
-                    columns=["author_1", "author_2"],
+                different_authors_df = pd.DataFrame(
+                    data=different_author_pairs,
                 )
-                temp = temp.sample(
-                    NUM_DESIRED_SAMPLES
-                    if len(temp) > NUM_DESIRED_SAMPLES
-                    else len(temp),
-                    replace=False,
-                )
-                different_author_pairs.extend(
-                    [
-                        np.concatenate(
-                            (
-                                temp["author_1"].iloc[i],
-                                np.array([0]),
-                                temp["author_2"].iloc[i],
-                            ),
-                            axis=None,
-                        ).tolist()
-                        for i in range(len(temp))
-                    ]
-                )
-
-            different_authors_df = pd.DataFrame(
-                data=different_author_pairs,
-            )
-            different_authors_df["label"] = 0
-            same_and_diff_authors_data_dict[split][
-                "different_authors"
-            ] = different_authors_df
-            logger.info(f"Successfully created different author dataset for {split}.")
-            del different_author_pairs
-
-            # Create pairs of samples from same author
-            same_author_pairs = []
-            for author in tqdm(split_df["author"].unique()[:NUM_DESIRED_AUTHORS]):
-                temp = pd.DataFrame(
-                    data=itertools.product(
-                        split_df[split_df["author"] == author].values,
-                        split_df[split_df["author"] == author].values,
-                    ),
-                    columns=["author_1", "author_2"],
-                )
-                temp = temp.sample(
-                    NUM_DESIRED_SAMPLES
-                    if len(temp) > NUM_DESIRED_SAMPLES
-                    else len(temp),
-                    replace=False,
-                )
-                same_author_pairs.extend(
-                    [
-                        np.concatenate(
-                            (
-                                temp["author_1"].iloc[i],
-                                np.array([0]),
-                                temp["author_2"].iloc[i],
-                            ),
-                            axis=None,
-                        ).tolist()
-                        for i in range(len(temp))
-                    ]
-                )
-            same_authors_df = pd.DataFrame(
-                data=same_author_pairs,
-            )
-            same_authors_df["label"] = 1
-            same_and_diff_authors_data_dict[split]["same_authors"] = same_authors_df
-            logger.info(f"Successfully created same author dataset for {split}.")
-            del same_author_pairs
-
-            # -----------------------------------
-            # Save the original created datasets.
-            # -----------------------------------
-            data_dump_path = os.path.join(
-                os.path.dirname(__file__),
-                "out",
-                "reddit_chunked",
-                f"reddit_{split}_pandas{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
-            )
-            with open(data_dump_path, "wb") as f:
-                pickle.dump(split_df, f, protocol=3)
+                different_authors_df["label"] = 0
+                same_and_diff_authors_data_dict[split][
+                    "different_authors"
+                ] = different_authors_df
                 logger.info(
-                    f"Successfully saved pandas version of data to {data_dump_path}."
+                    f"Successfully created different author dataset for {split}."
                 )
+                del different_author_pairs
 
-            for tag, dataset in zip(
-                ["same_authors", "different_authors"],
-                [same_authors_df, different_authors_df],
-            ):
+                # Create pairs of samples from same author
+                same_author_pairs = []
+                for author in tqdm(split_df["author"]):
+                    temp = pd.DataFrame(
+                        data=itertools.product(
+                            split_df[split_df["author"] == author].values,
+                            split_df[split_df["author"] == author].values,
+                        ),
+                        columns=["author_1", "author_2"],
+                    )
+                    temp = temp.sample(
+                        NUM_DESIRED_SAMPLES
+                        if len(temp) > NUM_DESIRED_SAMPLES
+                        else len(temp),
+                        replace=False,
+                    )
+                    same_author_pairs.extend(
+                        [
+                            np.concatenate(
+                                (
+                                    temp["author_1"].iloc[i],
+                                    np.array([0]),
+                                    temp["author_2"].iloc[i],
+                                ),
+                                axis=None,
+                            ).tolist()
+                            for i in range(len(temp))
+                        ]
+                    )
+                same_authors_df = pd.DataFrame(
+                    data=same_author_pairs,
+                )
+                same_authors_df["label"] = 1
+                same_and_diff_authors_data_dict[split]["same_authors"] = same_authors_df
+                logger.info(f"Successfully created same author dataset for {split}.")
+                del same_author_pairs
+
+                # -----------------------------------
+                # Save the original created datasets.
+                # -----------------------------------
                 data_dump_path = os.path.join(
                     os.path.dirname(__file__),
                     "out",
                     "reddit_chunked",
-                    f"reddit_{split}_{tag}_{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
+                    f"reddit_{split}_pandas{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
                 )
                 with open(data_dump_path, "wb") as f:
-                    pickle.dump(dataset, f, protocol=3)
+                    pickle.dump(split_df, f, protocol=3)
                     logger.info(
-                        f"Successfully saved pandas version of "
-                        f"{split}-{tag} data to {data_dump_path}."
+                        f"Successfully saved pandas version of data to {data_dump_path}."
                     )
-    else:
-        logger.info("Loading predefined binary dataset components...")
-        files = [
-            files[2]
-            for files in os.walk(
-                os.path.join(os.path.dirname(__file__), "out", "reddit_chunked")
-            )
-        ][0]
 
-        same_and_diff_authors_data_dict = {
-            "train": {"same_authors": None, "different_authors": None},
-            "test": {"same_authors": None, "different_authors": None},
-        }
-        for split in ["train", "test"]:
-            all_file_names = [
-                file for file in files if "same_authors" in file and split in file
-            ]
-            file_name = sorted(
-                all_file_names, key=lambda x: x.split("_")[-1].split(".")[0]
-            )[-1]
-            same_and_diff_authors_data_dict[split]["same_authors"] = pd.read_pickle(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "out",
-                    "reddit_chunked",
-                    file_name,
+                for tag, dataset in zip(
+                    ["same_authors", "different_authors"],
+                    [same_authors_df, different_authors_df],
+                ):
+                    data_dump_path = os.path.join(
+                        os.path.dirname(__file__),
+                        "out",
+                        "reddit_chunked",
+                        f"reddit_{split}_{tag}_{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
+                    )
+                    with open(data_dump_path, "wb") as f:
+                        pickle.dump(dataset, f, protocol=3)
+                        logger.info(
+                            f"Successfully saved pandas version of "
+                            f"{split}-{tag} data to {data_dump_path}."
+                        )
+        else:
+            logger.info("Loading predefined binary dataset components...")
+            files = [
+                files[2]
+                for files in os.walk(
+                    os.path.join(os.path.dirname(__file__), "out", "reddit_chunked")
                 )
-            )
-            logger.info(f"Successfully loaded file with name: {file_name}")
+            ][0]
 
-            all_file_names = [
-                file for file in files if "different_authors" in file and split in file
-            ]
-            file_name = sorted(
-                all_file_names, key=lambda x: x.split("_")[-1].split(".")[0]
-            )[-1]
+            same_and_diff_authors_data_dict = {
+                "train": {"same_authors": None, "different_authors": None},
+                "test": {"same_authors": None, "different_authors": None},
+            }
+            for split in ["train", "test"]:
+                all_file_names = [
+                    file for file in files if "same_authors" in file and split in file
+                ]
+                file_name = sorted(
+                    all_file_names, key=lambda x: x.split("_")[-1].split(".")[0]
+                )[-1]
+                same_and_diff_authors_data_dict[split]["same_authors"] = pd.read_pickle(
+                    os.path.join(
+                        os.path.dirname(__file__),
+                        "out",
+                        "reddit_chunked",
+                        file_name,
+                    )
+                )
+                logger.info(f"Successfully loaded file with name: {file_name}")
+
+                all_file_names = [
+                    file
+                    for file in files
+                    if "different_authors" in file and split in file
+                ]
+                file_name = sorted(
+                    all_file_names, key=lambda x: x.split("_")[-1].split(".")[0]
+                )[-1]
+                same_and_diff_authors_data_dict[split][
+                    "different_authors"
+                ] = pd.read_pickle(
+                    os.path.join(
+                        os.path.dirname(__file__),
+                        "out",
+                        "reddit_chunked",
+                        file_name,
+                    )
+                )
+                logger.info(f"Successfully loaded file with name: {file_name}")
+
+        # Remove the author column to avoid data leakage.
+        for split in ["train", "test"]:
+            same_and_diff_authors_data_dict[split][
+                "same_authors"
+            ] = same_and_diff_authors_data_dict[split]["same_authors"].drop(
+                columns=[
+                    # 3074, 1536
+                    3083,
+                    1538,
+                ]
+            )
             same_and_diff_authors_data_dict[split][
                 "different_authors"
-            ] = pd.read_pickle(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "out",
-                    "reddit_chunked",
-                    file_name,
-                )
+            ] = same_and_diff_authors_data_dict[split]["different_authors"].drop(
+                columns=[
+                    # 3074, 1536
+                    3083,
+                    1538,
+                ]
             )
-            logger.info(f"Successfully loaded file with name: {file_name}")
 
-    # Remove the author column to avoid data leakage.
-    for split in ["train", "test"]:
-        same_and_diff_authors_data_dict[split][
-            "same_authors"
-        ] = same_and_diff_authors_data_dict[split]["same_authors"].drop(
-            columns=[
-                # 3074, 1536
-                3083,
-                1538,
+        # Create binary classification dataset
+        binary_train_df = pd.concat(
+            [
+                same_and_diff_authors_data_dict["train"]["same_authors"],
+                same_and_diff_authors_data_dict["train"]["different_authors"],
             ]
         )
-        same_and_diff_authors_data_dict[split][
-            "different_authors"
-        ] = same_and_diff_authors_data_dict[split]["different_authors"].drop(
-            columns=[
-                # 3074, 1536
-                3083,
-                1538,
+        binary_test_df = pd.concat(
+            [
+                same_and_diff_authors_data_dict["test"]["same_authors"],
+                same_and_diff_authors_data_dict["test"]["different_authors"],
             ]
         )
 
-    # Combine the "same_authors" and "different_authors" datasets.
+        final_training_df = binary_train_df.copy()
+        final_testing_df = binary_test_df.copy()
+        final_validation_df = None
+        logger.info(f"Successfully created binary classification dataset.")
 
-    # combined_same_author_df = pd.concat(
-    #     [
-    #         same_and_diff_authors_data_dict["train"]["same_authors"],
-    #         same_and_diff_authors_data_dict["test"]["same_authors"],
-    #     ]
-    # )
-    # combined_different_author_df = pd.concat(
-    #     [
-    #         same_and_diff_authors_data_dict["train"]["different_authors"],
-    #         same_and_diff_authors_data_dict["test"]["different_authors"],
-    #     ]
-    # )
-    # binary_train_df = pd.concat(
-    #     [
-    #         combined_same_author_df.sample(frac=0.5, replace=False, random_state=42),
-    #         combined_different_author_df.sample(
-    #             frac=0.5, replace=False, random_state=42
-    #         ),
-    #     ]
-    # )
-    # combined_same_author_df = combined_same_author_df.drop(binary_train_df.index)
-    # combined_different_author_df = combined_different_author_df.drop(
-    #     binary_train_df.index
-    # )
-    # binary_test_df = pd.concat(
-    #     [
-    #         combined_same_author_df.sample(frac=1, replace=False, random_state=42),
-    #         combined_different_author_df.sample(frac=1, replace=False, random_state=42),
-    #     ]
-    # )
+    else:  # MULTICLASS
+        final_training_df = train_df.copy()
+        final_training_df = final_training_df.rename(columns={"author": "label"})
+        final_testing_df = test_df.copy()
+        final_testing_df = final_testing_df.rename(columns={"author": "label"})
 
-    # Create binary classification dataset
-    binary_train_df = pd.concat(
-        [
-            same_and_diff_authors_data_dict["train"]["same_authors"],
-            same_and_diff_authors_data_dict["train"]["different_authors"],
-        ]
-    )
-    binary_test_df = pd.concat(
-        [
-            same_and_diff_authors_data_dict["test"]["same_authors"],
-            same_and_diff_authors_data_dict["test"]["different_authors"],
-        ]
-    )
+        final_validation_df = pd.DataFrame()
+        for author in final_testing_df["label"].unique():
+            validation_samples = final_testing_df[final_testing_df["label"] == author]
+            validation_samples = validation_samples[~validation_samples["is_sensitive"]]
+            final_testing_df = final_testing_df.drop(validation_samples.index)
+            final_validation_df = pd.concat([final_validation_df, validation_samples])
 
-    logger.info(f"Successfully created binary classification dataset.")
+            # Assert at least one sample from each author is present.
+            # assert (
+            #     len(final_validation_df["label"].unique())
+            #     ==
+            #     len(final_testing_df["label"].unique())
+            # )
 
     # --------------
     # Classification
     # --------------
     if FIT_FLAG:
         logger.info(f"Fitting predictor...")
-        predictor = TabularPredictor(label="label", problem_type="binary", verbosity=3)
+        predictor = TabularPredictor(
+            label="label",
+            problem_type="binary" if BINARY else None,
+            verbosity=3,
+        )
         predictor.fit(
-            binary_train_df,
-            time_limit=60 * 60 * 1/8,
-            presets="medium_quality",
+            train_data=final_training_df,
+            tuning_data=final_validation_df.reset_index(drop=True),
+            dynamic_stacking=True,
+            excluded_model_types=[
+                "KNN",
+                # "TORCH_NN",
+                # "FASTAI",
+                # "XGBOOST",
+                # "CATBOOST",
+                # "RF",
+                # "LightGBM",
+                # "XT",
+                # "SVM"
+            ],
+            time_limit=60 * 60 * 1 / 2,
+            # presets=["good_quality", "optimize_for_deployment"],
+            hyperparameters="very_light",
             # ag_args_fit={"num_gpus": 1},
         )
     else:
@@ -507,13 +533,49 @@ if __name__ == "__main__":
         predictor = TabularPredictor.load(model_path)
         logger.info(f"Successfully loaded predictor from {model_path}.")
 
-    # print which models are used in the predictor.
-    logger.info(f"Predictor contains the following models: {predictor.model_names()}")
     logger.info(f"Predictor summary: {nl}{predictor.fit_summary()}")
-    predictor_results = {
-        "train": predictor.evaluate(binary_train_df, silent=False),
-        "test": predictor.evaluate(binary_test_df, silent=False),
-    }
+    if CALIBRATE_FLAG:
+        if not BINARY:
+            raise ValueError(f"Calibration is only possible for the binary problem.")
+
+        calib_data = final_testing_df.sample(
+            int(len(final_testing_df) / 2), replace=False
+        )
+
+        sub_testing_df = final_testing_df.drop(calib_data.index)
+
+        calibrated_decision_boundary = predictor.calibrate_decision_threshold(
+            metric="mcc", data=calib_data
+        )
+
+        predictor.set_decision_threshold(calibrated_decision_boundary)
+
+        predictor_results = {
+            "calib_train": predictor.evaluate(final_training_df, silent=False),
+            "calib_test": predictor.evaluate(sub_testing_df, silent=False),
+        }
+    else:
+        predictor_results = {
+            "train": predictor.evaluate(final_training_df, silent=False),
+            "test": predictor.evaluate(final_testing_df, silent=False),
+        }
+
+        k = 2
+        probabilities = predictor.predict_proba(final_testing_df)
+        # Select the top 5 most probable authors for each sample using pandas
+        top_k_authors = pd.DataFrame(
+            data=pd.DataFrame(probabilities, index=final_testing_df.index).apply(
+                lambda x: x.nlargest(k).index.tolist(), axis=1
+            )
+        )
+        # Get the true author for each sample and compare it with the top 5 authors.
+        top_k_authors["true_author"] = final_testing_df["label"]
+        top_k_authors[f"is_in_top_{k}"] = top_k_authors.apply(
+            lambda x: x["true_author"] in x[0], axis=1
+        )
+        top_k_accuracy = top_k_authors[f"is_in_top_{k}"].mean()
+        logger.info(f"Top {k} accuracy: {top_k_accuracy}")
+
     logger.info(
         f"Predictor train performance on classification: {predictor_results['train']}"
     )
