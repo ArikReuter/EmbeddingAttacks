@@ -43,6 +43,32 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s", level=loggin
 logger = logging.getLogger(__name__)
 
 
+def get_embedding(x: str, df: pd.DataFrame):
+    lookup = df.loc[x]
+
+    if isinstance(lookup, pd.Series):
+        return lookup.values
+    else:
+        # sample a random index from the lookup
+        return lookup.sample().values
+
+
+def remove_data_leakage(split_df: pd.DataFrame, leakage_values):
+    if split_df is not None:
+        for col in split_df.columns:
+            if split_df.dtypes[col] == "object":
+                # print(split_df[col].unique())
+                if split_df[col].isin(leakage_values).any():
+                    logger.info(f"Column {col} is a data leak. Remove it.")
+                    split_df = split_df.drop(columns=[col])
+                else:
+                    logger.info(f"Column {col} is not a data leak. Keep it.")
+    else:
+        logger.info(f"No data passed.")
+
+    return split_df
+
+
 if __name__ == "__main__":
     nl = "\n"
     datetime = time.strftime("%Y%m%d%H%M%S")
@@ -249,7 +275,9 @@ if __name__ == "__main__":
             chunked_data["test"][i]["metadata"][meta_data_key]
             for i in range(len(chunked_data["test"]))
         ]
-    logger.info(f"Successfully created train and test dataframes with {NUM_DESIRED_AUTHORS} authors.")
+    logger.info(
+        f"Successfully created train and test dataframes with {NUM_DESIRED_AUTHORS} authors."
+    )
 
     # Filter the train and test dataframes for the NUM_DESIRED_AUTHORS with the most samples
     authors_with_most_samples = (
@@ -277,11 +305,37 @@ if __name__ == "__main__":
             for split, split_df in zip(["train", "test"], [train_df, test_df]):
                 # Create pairs of samples from different authors
                 different_author_pairs = []
-                for author in tqdm(split_df["author"]):
+                for author in tqdm(split_df["author"].unique()):
+                    # temp = pd.DataFrame(
+                    #     data=itertools.product(
+                    #         split_df[split_df["author"] != author].values,
+                    #         split_df[split_df["author"] == author].values,
+                    #     ),
+                    #     columns=["author_1", "author_2"],
+                    # )
+                    # temp = temp.sample(
+                    #     NUM_DESIRED_SAMPLES
+                    #     if len(temp) > NUM_DESIRED_SAMPLES
+                    #     else len(temp),
+                    #     replace=False,
+                    # )
+                    # different_author_pairs.extend(
+                    #     [
+                    #         np.concatenate(
+                    #             (
+                    #                 temp["author_1"].iloc[i],
+                    #                 np.array([0]),
+                    #                 temp["author_2"].iloc[i],
+                    #             ),
+                    #             axis=None,
+                    #         ).tolist()
+                    #         for i in range(len(temp))
+                    #     ]
+                    # )
                     temp = pd.DataFrame(
                         data=itertools.product(
-                            split_df[split_df["author"] != author].values,
-                            split_df[split_df["author"] == author].values,
+                            split_df[split_df["author"] != author].index,
+                            split_df[split_df["author"] == author].index,
                         ),
                         columns=["author_1", "author_2"],
                     )
@@ -291,16 +345,23 @@ if __name__ == "__main__":
                         else len(temp),
                         replace=False,
                     )
+                    # Replace the author_1 and author_2 columns with the corresponding embeddings.
+                    temp = temp.reset_index(drop=True)
+                    temp["author_1"] = temp["author_1"].apply(
+                        lambda x: get_embedding(x, split_df)
+                    )
+                    temp["author_2"] = temp["author_2"].apply(
+                        lambda x: get_embedding(x, split_df)
+                    )
                     different_author_pairs.extend(
                         [
                             np.concatenate(
                                 (
                                     temp["author_1"].iloc[i],
-                                    np.array([0]),
                                     temp["author_2"].iloc[i],
                                 ),
                                 axis=None,
-                            ).tolist()
+                            )
                             for i in range(len(temp))
                         ]
                     )
@@ -319,11 +380,37 @@ if __name__ == "__main__":
 
                 # Create pairs of samples from same author
                 same_author_pairs = []
-                for author in tqdm(split_df["author"]):
+                for author in tqdm(split_df["author"].unique()):
+                    # temp = pd.DataFrame(
+                    #     data=itertools.product(
+                    #         split_df[split_df["author"] == author].values,
+                    #         split_df[split_df["author"] == author].values,
+                    #     ),
+                    #     columns=["author_1", "author_2"],
+                    # )
+                    # temp = temp.sample(
+                    #     NUM_DESIRED_SAMPLES
+                    #     if len(temp) > NUM_DESIRED_SAMPLES
+                    #     else len(temp),
+                    #     replace=False,
+                    # )
+                    # same_author_pairs.extend(
+                    #     [
+                    #         np.concatenate(
+                    #             (
+                    #                 temp["author_1"].iloc[i],
+                    #                 np.array([0]),
+                    #                 temp["author_2"].iloc[i],
+                    #             ),
+                    #             axis=None,
+                    #         ).tolist()
+                    #         for i in range(len(temp))
+                    #     ]
+                    # )
                     temp = pd.DataFrame(
                         data=itertools.product(
-                            split_df[split_df["author"] == author].values,
-                            split_df[split_df["author"] == author].values,
+                            split_df[split_df["author"] == author].index,
+                            split_df[split_df["author"] == author].index,
                         ),
                         columns=["author_1", "author_2"],
                     )
@@ -333,19 +420,27 @@ if __name__ == "__main__":
                         else len(temp),
                         replace=False,
                     )
+                    # Replace the author_1 and author_2 columns with the corresponding embeddings.
+                    temp = temp.reset_index(drop=True)
+                    temp["author_1"] = temp["author_1"].apply(
+                        lambda x: get_embedding(x, split_df)
+                    )
+                    temp["author_2"] = temp["author_2"].apply(
+                        lambda x: get_embedding(x, split_df)
+                    )
                     same_author_pairs.extend(
                         [
                             np.concatenate(
                                 (
                                     temp["author_1"].iloc[i],
-                                    np.array([0]),
                                     temp["author_2"].iloc[i],
                                 ),
                                 axis=None,
-                            ).tolist()
+                            )
                             for i in range(len(temp))
                         ]
                     )
+
                 same_authors_df = pd.DataFrame(
                     data=same_author_pairs,
                 )
@@ -361,7 +456,7 @@ if __name__ == "__main__":
                     os.path.dirname(__file__),
                     "out",
                     "reddit_chunked",
-                    f"reddit_{split}_pandas{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
+                    f"reddit_{split}_pandas_{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
                 )
                 with open(data_dump_path, "wb") as f:
                     pickle.dump(split_df, f, protocol=3)
@@ -435,27 +530,6 @@ if __name__ == "__main__":
                 )
                 logger.info(f"Successfully loaded file with name: {file_name}")
 
-        # Remove the author column to avoid data leakage.
-        for split in ["train", "test"]:
-            same_and_diff_authors_data_dict[split][
-                "same_authors"
-            ] = same_and_diff_authors_data_dict[split]["same_authors"].drop(
-                columns=[
-                    # 3074, 1536
-                    3083,
-                    1538,
-                ]
-            )
-            same_and_diff_authors_data_dict[split][
-                "different_authors"
-            ] = same_and_diff_authors_data_dict[split]["different_authors"].drop(
-                columns=[
-                    # 3074, 1536
-                    3083,
-                    1538,
-                ]
-            )
-
         # Create binary classification dataset
         binary_train_df = pd.concat(
             [
@@ -473,6 +547,17 @@ if __name__ == "__main__":
         final_training_df = binary_train_df.copy()
         final_testing_df = binary_test_df.copy()
         final_validation_df = None
+
+        final_training_df = remove_data_leakage(
+            split_df=final_training_df, leakage_values=train_df["author"].unique()
+        )
+        final_testing_df = remove_data_leakage(
+            split_df=final_testing_df, leakage_values=train_df["author"].unique()
+        )
+        final_validation_df = remove_data_leakage(
+            split_df=final_validation_df, leakage_values=train_df["author"].unique()
+        )
+
         logger.info(f"Successfully created binary classification dataset.")
 
     else:  # MULTICLASS
@@ -495,6 +580,8 @@ if __name__ == "__main__":
             #     len(final_testing_df["label"].unique())
             # )
 
+        final_validation_df = final_validation_df.reset_index(drop=True)
+
     # --------------
     # Classification
     # --------------
@@ -507,7 +594,7 @@ if __name__ == "__main__":
         )
         predictor.fit(
             train_data=final_training_df,
-            tuning_data=final_validation_df.reset_index(drop=True),
+            tuning_data=final_validation_df,
             dynamic_stacking=True,
             excluded_model_types=[
                 "KNN",
@@ -520,7 +607,7 @@ if __name__ == "__main__":
                 # "XT",
                 # "SVM"
             ],
-            time_limit=60 * 60 * 1 / 2,
+            time_limit=60 * 60 * 1 / 4,
             # presets=["good_quality", "optimize_for_deployment"],
             hyperparameters="very_light",
             # ag_args_fit={"num_gpus": 1},
