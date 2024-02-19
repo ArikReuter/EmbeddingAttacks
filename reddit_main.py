@@ -31,7 +31,7 @@ from globals import (
     NUM_DESIRED_SAMPLES,
     MODEL_LOAD_NAME,
     CALIBRATE_FLAG,
-    BINARY,
+    BINARY, MAX_DESIRED_SAMPLES_PER_COMMENT,
 )
 
 # Classification
@@ -50,7 +50,12 @@ def get_embedding(x: str, df: pd.DataFrame):
         return lookup.values
     else:
         # sample a random index from the lookup
-        return lookup.sample().values
+        return lookup.sample(
+                MAX_DESIRED_SAMPLES_PER_COMMENT
+                if len(lookup) > MAX_DESIRED_SAMPLES_PER_COMMENT
+                else len(lookup),
+                replace=False,
+            ).values
 
 
 def remove_data_leakage(split_df: pd.DataFrame, leakage_values):
@@ -120,7 +125,11 @@ if __name__ == "__main__":
                 os.path.dirname(__file__),
                 "out",
                 "reddit_chunked",
-                f"reddit_{split}_chunks{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_{datetime}.pickle",
+                f"reddit_{split}_chunks_"
+                f"{NUM_DESIRED_AUTHORS}_AUTH_"
+                f"{MAX_DESIRED_SAMPLES_PER_COMMENT}_MAXCOMB_"
+                f"{NUM_DESIRED_SAMPLES}_SAMPLE_"
+                f"{datetime}.pickle",
             )
 
             with open(data_dump_path, "wb") as f:
@@ -186,7 +195,11 @@ if __name__ == "__main__":
                 os.path.dirname(__file__),
                 "out",
                 "reddit_chunked",
-                f"reddit_{split}_embedd{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_ings_{datetime}.pickle",
+                f"reddit_{split}_embedding_"
+                f"{NUM_DESIRED_AUTHORS}_AUTH_"
+                f"{MAX_DESIRED_SAMPLES_PER_COMMENT}_MAXCOMB_"
+                f"{NUM_DESIRED_SAMPLES}_SAMPLE_"                
+                f"{datetime}.pickle",
             )
             with open(data_dump_path, "wb") as f:
                 pickle.dump(dict_chunk_list, f, protocol=3)
@@ -353,18 +366,71 @@ if __name__ == "__main__":
                     temp["author_2"] = temp["author_2"].apply(
                         lambda x: get_embedding(x, split_df)
                     )
-                    different_author_pairs.extend(
-                        [
-                            np.concatenate(
-                                (
-                                    temp["author_1"].iloc[i],
-                                    temp["author_2"].iloc[i],
-                                ),
-                                axis=None,
+
+                    # Go through the rows of temp and if an entry in either column is not one
+                    # dimensional, split it into multiple rows.
+                    for i in range(len(temp)):
+                        if (
+                                len(temp["author_1"].iloc[i].shape) > 1
+                                and
+                                len(temp["author_2"].iloc[i].shape) > 1
+                        ):
+                            for j in range(temp["author_1"].iloc[i].shape[0]):
+                                for k in range(temp["author_2"].iloc[i].shape[0]):
+                                    different_author_pairs.append(
+                                        np.concatenate(
+                                            (
+                                                temp["author_1"].iloc[i][j],
+                                                temp["author_2"].iloc[i][k],
+                                            ),
+                                            axis=None,
+                                        )
+                                    )
+                        elif len(temp["author_1"].iloc[i].shape) > 1:
+                            for j in range(temp["author_1"].iloc[i].shape[0]):
+                                different_author_pairs.append(
+                                    np.concatenate(
+                                        (
+                                            temp["author_1"].iloc[i][j],
+                                            temp["author_2"].iloc[i],
+                                        ),
+                                        axis=None,
+                                    )
+                                )
+                        elif len(temp["author_2"].iloc[i].shape) > 1:
+                            for j in range(temp["author_2"].iloc[i].shape[0]):
+                                different_author_pairs.append(
+                                    np.concatenate(
+                                        (
+                                            temp["author_1"].iloc[i],
+                                            temp["author_2"].iloc[i][j],
+                                        ),
+                                        axis=None,
+                                    )
+                                )
+                        else:
+                            different_author_pairs.append(
+                                np.concatenate(
+                                    (
+                                        temp["author_1"].iloc[i],
+                                        temp["author_2"].iloc[i],
+                                    ),
+                                    axis=None,
+                                )
                             )
-                            for i in range(len(temp))
-                        ]
-                    )
+
+                    # different_author_pairs.extend(
+                    #     [
+                    #         np.concatenate(
+                    #             (
+                    #                 temp["author_1"].iloc[i],
+                    #                 temp["author_2"].iloc[i],
+                    #             ),
+                    #             axis=None,
+                    #         )
+                    #         for i in range(len(temp))
+                    #     ]
+                    # )
 
                 different_authors_df = pd.DataFrame(
                     data=different_author_pairs,
@@ -428,18 +494,71 @@ if __name__ == "__main__":
                     temp["author_2"] = temp["author_2"].apply(
                         lambda x: get_embedding(x, split_df)
                     )
-                    same_author_pairs.extend(
-                        [
-                            np.concatenate(
-                                (
-                                    temp["author_1"].iloc[i],
-                                    temp["author_2"].iloc[i],
-                                ),
-                                axis=None,
+
+                    # Go through the rows of temp and if an entry in either column is not one
+                    # dimensional, split it into multiple rows.
+                    for i in range(len(temp)):
+                        if (
+                                len(temp["author_1"].iloc[i].shape) > 1
+                                and
+                                len(temp["author_2"].iloc[i].shape) > 1
+                        ):
+                            for j in range(temp["author_1"].iloc[i].shape[0]):
+                                for k in range(temp["author_2"].iloc[i].shape[0]):
+                                    same_author_pairs.append(
+                                        np.concatenate(
+                                            (
+                                                temp["author_1"].iloc[i][j],
+                                                temp["author_2"].iloc[i][k],
+                                            ),
+                                            axis=None,
+                                        )
+                                    )
+                        elif len(temp["author_1"].iloc[i].shape) > 1:
+                            for j in range(temp["author_1"].iloc[i].shape[0]):
+                                same_author_pairs.append(
+                                    np.concatenate(
+                                        (
+                                            temp["author_1"].iloc[i][j],
+                                            temp["author_2"].iloc[i],
+                                        ),
+                                        axis=None,
+                                    )
+                                )
+                        elif len(temp["author_2"].iloc[i].shape) > 1:
+                            for j in range(temp["author_2"].iloc[i].shape[0]):
+                                same_author_pairs.append(
+                                    np.concatenate(
+                                        (
+                                            temp["author_1"].iloc[i],
+                                            temp["author_2"].iloc[i][j],
+                                        ),
+                                        axis=None,
+                                    )
+                                )
+                        else:
+                            same_author_pairs.append(
+                                np.concatenate(
+                                    (
+                                        temp["author_1"].iloc[i],
+                                        temp["author_2"].iloc[i],
+                                    ),
+                                    axis=None,
+                                )
                             )
-                            for i in range(len(temp))
-                        ]
-                    )
+
+                    # same_author_pairs.extend(
+                    #     [
+                    #         np.concatenate(
+                    #             (
+                    #                 temp["author_1"].iloc[i],
+                    #                 temp["author_2"].iloc[i],
+                    #             ),
+                    #             axis=None,
+                    #         )
+                    #         for i in range(len(temp))
+                    #     ]
+                    # )
 
                 same_authors_df = pd.DataFrame(
                     data=same_author_pairs,
@@ -456,7 +575,11 @@ if __name__ == "__main__":
                     os.path.dirname(__file__),
                     "out",
                     "reddit_chunked",
-                    f"reddit_{split}_pandas_{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
+                    f"reddit_{split}_pandas_"
+                    f"{NUM_DESIRED_AUTHORS}_AUTH_"
+                    f"{MAX_DESIRED_SAMPLES_PER_COMMENT}_MAXCOMB_"
+                    f"{NUM_DESIRED_SAMPLES}_SAMPLE_"
+                    f"df_{datetime}.pickle",
                 )
                 with open(data_dump_path, "wb") as f:
                     pickle.dump(split_df, f, protocol=3)
@@ -472,7 +595,11 @@ if __name__ == "__main__":
                         os.path.dirname(__file__),
                         "out",
                         "reddit_chunked",
-                        f"reddit_{split}_{tag}_{NUM_DESIRED_AUTHORS}_AUTH_{NUM_DESIRED_SAMPLES}_SAMPLE_df_{datetime}.pickle",
+                        f"reddit_{split}_{tag}_"
+                        f"{NUM_DESIRED_AUTHORS}_AUTH_"
+                        f"{MAX_DESIRED_SAMPLES_PER_COMMENT}_MAXCOMB_"
+                        f"{NUM_DESIRED_SAMPLES}_SAMPLE_"
+                        f"df_{datetime}.pickle",
                     )
                     with open(data_dump_path, "wb") as f:
                         pickle.dump(dataset, f, protocol=3)
@@ -598,17 +725,18 @@ if __name__ == "__main__":
             dynamic_stacking=True,
             excluded_model_types=[
                 "KNN",
-                # "TORCH_NN",
+                "RF",
+                "XT",
+                "custom",
+                # "NN",
+                "GBM",
+                "CAT",
                 # "FASTAI",
-                # "XGBOOST",
-                # "CATBOOST",
-                # "RF",
-                # "LightGBM",
-                # "XT",
-                # "SVM"
+                "XGB",
+                "LR",
             ],
-            time_limit=60 * 60 * 1 / 4,
-            # presets=["good_quality", "optimize_for_deployment"],
+            time_limit=60 * 60 * 1/2,
+            presets=["medium_quality", "optimize_for_deployment"],
             hyperparameters="very_light",
             # ag_args_fit={"num_gpus": 1},
         )
@@ -671,3 +799,17 @@ if __name__ == "__main__":
     )
 
     pass
+
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    sns.set()
+    fig, ax = plt.subplots(1, 1, figsize=(16,9))
+    sns.barplot(
+        final_training_df.label,
+        ax=ax
+    )
+    ax.set_title("Label Distribution")
+    ax.set_xlabel("Label")
+    ax.set_ylabel("Count")
+    plt.tight_layout()
+    plt.show()
