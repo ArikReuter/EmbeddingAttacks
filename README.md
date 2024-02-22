@@ -50,7 +50,8 @@ following columns:
 Also a result is a curated small dataset `showcase.csv` with 5 users, each with an innocent and sensitive utterance.
 
 
-## Where to store the data
+## Data Storing
+
 EmbeddingAttacks \
 ├── *data* \
 │   ├── *gutenberg* \
