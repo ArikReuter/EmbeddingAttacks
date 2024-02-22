@@ -26,8 +26,8 @@ EmbeddingAttacks \
 │   │   ├── *SPGC_tokens_20180718* \
 │   │   ├── *SPGC_metadata_20180718.csv* \
 │   ├── *reddit* \
-|   |   ├── *RS_2019-04.zst* \
-|   |   ├── *RC_2019-04.zst* \
+│   │   ├── *RS_2019-04.zst* \
+│   │   ├── *RC_2019-04.zst* \
 ├── embeddings 
 
 ### Downloading and preprocessing the data
