@@ -67,4 +67,23 @@ EmbeddingAttacks \
 
 ## Reproducing the experiments
 
+Given the files EmbeddingAttacks/data/reddit/reddit_test_df_v1_1.csv and EmbeddingAttacks/data/reddit/reddit_train_df_v1_1.csv, running the script reddit_main.py runs our entire experimental pipeline, including chunking and embedding of the texts and fitting the final prediction model. 
+Several flags in globals.py can be used to change the parameters of the experiment. 
+
+| Variable     | Description |
+| -----------  | ----------- |
+| CHUNKING_FLAG  | If True, use chunks from most recent previous run of the script.     |
+| EMBEDDING_FLAG  | If True, use embeddings from most recent previous run of the script.      |
+| BINARY      | If True, use a Binary classification task, otherwise multiclass classification |
+| CREATE_BINARY_DATASET_FLAG      | If True, use a Binary classification task, otherwise multiclass classification |
+| CALIBRATE_FLAG      | If True, calibrate the finally obtained model |
+| NUM_DESIRED_SAMPLES      | Maximum number of samples per author |
+| MAX_DESIRED_SAMPLES_PER_COMMENT      | Maximum number of samples of pairs per comment |
+| NUM_DESIRED_AUTHORS      | Number of authors to use the data of |
+| FIT_FLAG     | If True, fit a model, else just the data chunking and embedding is performer |
+| MODEL_LOAD_NAME      | Name of a model to load. if "None", no model is loaded |
+ 
+
+
+
 
