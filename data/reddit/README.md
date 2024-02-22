@@ -7,9 +7,9 @@ Requirements:
 - zstd
 
 ```bash
-source extract_users.sh
-python process-authors.py
-source extract_sample_utterances.sh
+source extract-users.sh
+python split-and-select-users.py
+source extract-sample-utterances.sh
 python convert-njson-to-df-like.py
 ```
 
