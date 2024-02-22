@@ -81,7 +81,7 @@ Several flags in globals.py can be used to change the parameters of the experime
 | MAX_DESIRED_SAMPLES_PER_COMMENT      | Maximum number of samples of pairs per comment |
 | NUM_DESIRED_AUTHORS      | Number of authors to use the data of |
 | FIT_FLAG     | If True, fit a model, else just the data chunking and embedding is performer |
-| MODEL_LOAD_NAME      | Name of a model to load. if "None", no model is loaded |
+| MODEL_LOAD_NAME      | Name of a model to load. if "NONE", no model is loaded |
  
 
 
