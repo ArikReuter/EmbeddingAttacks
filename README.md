@@ -6,13 +6,25 @@
 Python-version: 3.10.11
 ```
 
-## Data
+## Raw datasets
 Data can be downloaded from the following links: 
 
 - https://paperswithcode.com/dataset/standardized-project-gutenberg-corpus
 - https://zenodo.org/records/3608135
 
-# Downloading and preprocessing the data
+Save the files in following paths:
+
+EmbeddingAttacks \
+├── *data* \
+│   ├── *gutenberg* \
+│   │   ├── *SPGC_tokens_20180718* \
+│   │   ├── *SPGC_metadata_20180718.csv* \
+│   ├── *reddit* \
+|   |   ├── *RS_2019-04.zst* \
+|   |   ├── *RC_2019-04.zst* \
+├── embeddings 
+
+## Preprocessing the data
 
 Requirements:
 
@@ -21,6 +33,7 @@ Requirements:
 - zstd
 
 ```bash
+cd ./data/reddit
 source extract-users.sh
 python split-and-select-users.py
 source extract-sample-utterances.sh
@@ -46,19 +59,3 @@ following columns:
 - `is_submission` - (bool) Was the `utterance` a submission (TRUE) or a comment (FALSE)?
 - `n_sentences` - (int) How many sentences does `utterance` have?
 - `is_sensitive` - (bool) Is the utterance sensitive, as decided based on subreddit and nsfw flag.
-
-Also a result is a curated small dataset `showcase.csv` with 5 users, each with an innocent and sensitive utterance.
-
-
-## Data Storing
-
-EmbeddingAttacks \
-├── *data* \
-│   ├── *gutenberg* \
-│   │   ├── *SPGC_tokens_20180718* \
-│   │   ├── *SPGC_metadata_20180718.csv* \
-│   ├── *reddit* \
-|   |   ├── *RS_2019-04.zst* \
-|   |   ├── *RC_2019-04.zst* \
-├── embeddings 
-
