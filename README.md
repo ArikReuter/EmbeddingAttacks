@@ -16,7 +16,7 @@ Data can be downloaded from the following links:
 - https://paperswithcode.com/dataset/standardized-project-gutenberg-corpus
 - https://zenodo.org/records/3608135
 
-# Downloading and preprocessing the data
+### Downloading and preprocessing the data
 
 Requirements:
 
@@ -31,7 +31,7 @@ source extract-sample-utterances.sh
 python convert-njson-to-df-like.py
 ```
 
-# Metadata
+### Metadata
 
 An *utterance* is any text produced by a user. It could be a *submission* (a new post) or
 a *comment* to a submission.
@@ -39,8 +39,7 @@ a *comment* to a submission.
 Sensitivity is decided based on subreddit name and flag `nsfw`. The list of subreddit patterns 
 is in `sensitive-subreddit-patterns.txt`.
 
-The end result is `reddit_train_df.csv` and `reddit_test_df.csv`, uploaded at GDrive. Each contains
-following columns:
+The end result is `reddit_train_df.csv` and `reddit_test_df.csv`.
 
 - `author` - (txt) Username of author of utterance
 - `utterance` - (txt) Text of submission or comment.
@@ -54,7 +53,7 @@ following columns:
 Also a result is a curated small dataset `showcase.csv` with 5 users, each with an innocent and sensitive utterance.
 
 
-## Data Storing
+### Data Storing
 
 EmbeddingAttacks \
 ├── *data* \
@@ -65,4 +64,6 @@ EmbeddingAttacks \
 |   |   ├── *RS_2019-04.zst* \
 |   |   ├── *RC_2019-04.zst* \
 ├── embeddings 
+
+# Reproducing the experiments
 
