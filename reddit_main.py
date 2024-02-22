@@ -31,7 +31,8 @@ from globals import (
     NUM_DESIRED_SAMPLES,
     MODEL_LOAD_NAME,
     CALIBRATE_FLAG,
-    BINARY, MAX_DESIRED_SAMPLES_PER_COMMENT,
+    BINARY,
+    MAX_DESIRED_SAMPLES_PER_COMMENT,
 )
 
 # Classification
@@ -51,11 +52,11 @@ def get_embedding(x: str, df: pd.DataFrame):
     else:
         # sample a random index from the lookup
         return lookup.sample(
-                MAX_DESIRED_SAMPLES_PER_COMMENT
-                if len(lookup) > MAX_DESIRED_SAMPLES_PER_COMMENT
-                else len(lookup),
-                replace=False,
-            ).values
+            MAX_DESIRED_SAMPLES_PER_COMMENT
+            if len(lookup) > MAX_DESIRED_SAMPLES_PER_COMMENT
+            else len(lookup),
+            replace=False,
+        ).values
 
 
 def remove_data_leakage(split_df: pd.DataFrame, leakage_values):
@@ -198,7 +199,7 @@ if __name__ == "__main__":
                 f"reddit_{split}_embedding_"
                 f"{NUM_DESIRED_AUTHORS}_AUTH_"
                 f"{MAX_DESIRED_SAMPLES_PER_COMMENT}_MAXCOMB_"
-                f"{NUM_DESIRED_SAMPLES}_SAMPLE_"                
+                f"{NUM_DESIRED_SAMPLES}_SAMPLE_"
                 f"{datetime}.pickle",
             )
             with open(data_dump_path, "wb") as f:
@@ -371,9 +372,8 @@ if __name__ == "__main__":
                     # dimensional, split it into multiple rows.
                     for i in range(len(temp)):
                         if (
-                                len(temp["author_1"].iloc[i].shape) > 1
-                                and
-                                len(temp["author_2"].iloc[i].shape) > 1
+                            len(temp["author_1"].iloc[i].shape) > 1
+                            and len(temp["author_2"].iloc[i].shape) > 1
                         ):
                             for j in range(temp["author_1"].iloc[i].shape[0]):
                                 for k in range(temp["author_2"].iloc[i].shape[0]):
@@ -499,9 +499,8 @@ if __name__ == "__main__":
                     # dimensional, split it into multiple rows.
                     for i in range(len(temp)):
                         if (
-                                len(temp["author_1"].iloc[i].shape) > 1
-                                and
-                                len(temp["author_2"].iloc[i].shape) > 1
+                            len(temp["author_1"].iloc[i].shape) > 1
+                            and len(temp["author_2"].iloc[i].shape) > 1
                         ):
                             for j in range(temp["author_1"].iloc[i].shape[0]):
                                 for k in range(temp["author_2"].iloc[i].shape[0]):
@@ -723,19 +722,14 @@ if __name__ == "__main__":
             train_data=final_training_df,
             tuning_data=final_validation_df,
             dynamic_stacking=True,
+            # included_model_types=[
+            #     "FASTAI",
+            #     "NN_TORCH",
+            # ],
             excluded_model_types=[
                 "KNN",
-                "RF",
-                "XT",
-                "custom",
-                # "NN",
-                "GBM",
-                "CAT",
-                # "FASTAI",
-                "XGB",
-                "LR",
             ],
-            time_limit=60 * 60 * 1/2,
+            time_limit=60 * 60 * 1 / 2,
             presets=["medium_quality", "optimize_for_deployment"],
             hyperparameters="very_light",
             # ag_args_fit={"num_gpus": 1},
@@ -769,7 +763,8 @@ if __name__ == "__main__":
             "calib_train": predictor.evaluate(final_training_df, silent=False),
             "calib_test": predictor.evaluate(sub_testing_df, silent=False),
         }
-    else:
+
+    if not BINARY:
         predictor_results = {
             "train": predictor.evaluate(final_training_df, silent=False),
             "test": predictor.evaluate(final_testing_df, silent=False),
@@ -792,24 +787,12 @@ if __name__ == "__main__":
         logger.info(f"Top {k} accuracy: {top_k_accuracy}")
 
     logger.info(
+        predictor.leaderboard(final_testing_df, silent=False)
+    )
+
+    logger.info(
         f"Predictor train performance on classification: {predictor_results['train']}"
     )
     logger.info(
         f"Predictor test performance on classification: {predictor_results['test']}"
     )
-
-    pass
-
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    sns.set()
-    fig, ax = plt.subplots(1, 1, figsize=(16,9))
-    sns.barplot(
-        final_training_df.label,
-        ax=ax
-    )
-    ax.set_title("Label Distribution")
-    ax.set_xlabel("Label")
-    ax.set_ylabel("Count")
-    plt.tight_layout()
-    plt.show()
